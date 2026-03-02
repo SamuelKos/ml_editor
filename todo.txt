@@ -1,0 +1,25 @@
+This is TODO of ML-editor
+
+	###################################
+	###################################
+	###################################
+	# Note: quotes and all braces after: # are still counted!
+	###################################
+	###################################
+	###################################
+
+
+search escape curlies etc, done?
+
+
+search bad index check:
+in combobox, search <Return --> find flag fix
+not sure if yet fixed
+
+
+Tabify at fileopen/close
+rstrip at fileclose
+
+horizontal scroll away? OR just some 'dumb bottom margin'? no?
+
+
