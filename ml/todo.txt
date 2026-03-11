@@ -1,25 +1,108 @@
 This is TODO of ML-editor
+ööää
 
-	###################################
-	###################################
-	###################################
-	# Note: quotes and all braces after: # are still counted!
-	###################################
-	###################################
-	###################################
+jos lähdetiedosto on utf-8 mutta system ei ole utf-8 esim win95
+set chan [open utf8_file.txt]
 
+# find system native encoding
+fconfigure $chan -encoding
+
+# set encoding of channel (to that of file was writed originally)
+fconfigure $chan -encoding utf-8
+
+set $cont [$chan read]
+close $chan
+
+# write file with system native encoding (for example in win95 native encoding which could be cp1252)
+set chan [open win95_native_enc.txt w]
+puts $chan $cont
+close $chan
+
+# note that in win95, dos has different encoding like cp850
+set chan [open dos_850_enc.txt w]
+fconfigure $chan -encoding cp850
+puts $chan $cont
+close $chan
+
+
+
+
+if {cond1 && cond2}
+if {cond1 || cond2}
+is short-circuited like in python
+
+
+return over if end of ind with spaces --> sailing
+or inside indent
+after indent only tabs --> works
+	
 
 search escape curlies etc, done?
+not done 
 
 
 search bad index check:
 in combobox, search <Return --> find flag fix
 not sure if yet fixed
+see err.txt
 
 
 Tabify at fileopen/close
 rstrip at fileclose
 
+
 horizontal scroll away? OR just some 'dumb bottom margin'? no?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Notes Begin
+
+#####################################
+quotes and all braces after: # are still counted!
+#####################################
+
+#####################################		
+elseif not elif
+#####################################
+
+#####################################
+There must not to be space after comma
+set t $editor($editor_no,text)
+#####################################
+
+#####################################
+proc get_linenum { editor_no {index insert} } {}
+index is *not* keyword argument with default value 'insert',
+instead it is just a normal argument with default value.
+
+This means that:
+if there would be two arguments with default values and wanting to change value
+of second, would also need to pass value of the first argument
+#####################################
+
+Notes End
+
+
+
+
+
+
 
 
