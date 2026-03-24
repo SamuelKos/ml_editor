@@ -19,10 +19,12 @@ should work in any platform with Tcl/Tk ~ 8.0 or better.
 In ml-directory, enter either:
 - tclsh main.tcl
 - wish main.tcl
+
 Currently don't know how to make this a starkit and not wanting to put binaries to version conrol.
 
 And it should launch. Font can currently be changed only manually by editing configuration file.
 Edit it after first exit. Tcl/Tk can be getted from [here](https://www.bawt.tcl3d.org/download.html#tclpure)
+
 If can install from app repository or compile oneself, do so.
 
 
