@@ -200,29 +200,29 @@ proc syntax_highlight { editor_no start_line end_line } {
 #== double-click on braces to select text ==================================#
 
 proc selectClosingBrace {widget} {
-    if {[string equal [$widget get insert-1chars] \\ ] } {
+	if {[string equal [$widget get insert-1chars] \\ ] } {
 	return 0
-    }
-    set mark [$widget index insert]
-    set openingChar [$widget get $mark] 
-    switch $openingChar \{ {
+	}
+	set mark [$widget index insert]
+	set openingChar [$widget get $mark]
+	switch $openingChar \{ {
 	set closingChar \}
-    } \" {
+	} \" {
 	set closingChar \"
-    } \[ {
+	} \[ {
 	set closingChar \]
-    } default {
+	} default {
 	return 0
-    }
-    set target [$widget index $mark+1chars]
-    while {![info complete [$widget get $mark $target+1chars]]} {
+	}
+	set target [$widget index $mark+1chars]
+	while {![info complete [$widget get $mark $target+1chars]]} {
 	set target [$widget search $closingChar $target+1chars end]
 	if {$target == ""} {
 	    return 0
 	}
-    }
-    $widget tag add sel $mark $target+1chars
-    return 1
+	}
+	$widget tag add sel $mark $target+1chars
+	return 1
 }
 
 #== validate procedures =============================================#
@@ -253,7 +253,7 @@ proc validate_procedures { editor_no } {
 
 proc update_status { editor_no } {
 	global editor
-	
+
 	set sw $editor($editor_no,status_window)
 	set t $editor($editor_no,text)
 
@@ -388,14 +388,20 @@ proc make_window_active { editor_no } {
 		#puts  jou
 		#syntax_highlight $editor_no 1 end
 	}
-	
+
 	if {$editor(just_launched)} {
 		# restore lastpos
 		$t mark set insert $editor(lastpos)
 		set editor(just_launched) 0
 		$t see {insert -3 lines}
+
+		# Get things actually 'rolling'
+		update idletasks
+
+		set editor(text_widget_height) [winfo height $t]
+		set editor(bbox_height) [lindex [$t bbox @0,0] end]
 	}
-	
+
 	# focus on the text widget
 	focus -force $t
 
@@ -494,7 +500,7 @@ proc search_find { editor_no } {
 		$entry list insert end $string
 	}
 
-    button $f2.find -text "Find Next" -command "search_find_command $editor_no $w $entry" -width 10
+	button $f2.find -text "Find Next" -command "search_find_command $editor_no $w $entry" -width 10
 	button $f2.cancel -text "Cancel" -command "destroy $w" -width 10
 	pack $f2.find -side top -padx 8 -pady 4
 	pack $f2.cancel -side top -padx 8 -pady 4
@@ -502,10 +508,10 @@ proc search_find { editor_no } {
 	pack $f1 -side left -anchor nw
 	pack $f2 -side left -anchor nw
 
-    bind $entry.entry <Return> "+search_find_command $editor_no $w $entry"
+	bind $entry.entry <Return> "+search_find_command $editor_no $w $entry"
 	bind $entry.entry <Escape> "destroy $w"
 	bind $entry.top.list <ButtonRelease-3> "remove_history $editor_no $w $entry; break"
-	
+
 	focus -force $entry
 	centre_window $w
 }
@@ -531,7 +537,7 @@ proc search_find_command { editor_no w entry } {
 	}
 
 	# search "again" (starting from current position)
-    search_find_next $editor_no F3
+	search_find_next $editor_no F3
 }
 
 
@@ -552,23 +558,23 @@ proc search_find_next { editor_no {key F3}} {
 	set pos [$t index insert]
 	set s "1.0"
 	set e "end"
-	
+
 	# backwards
 	if {$key == "F4"} {
 		set s "end"
 		set e "1.0"
 	}
-	
+
 	# Searching 'again'
-	if {![string eq "" $editor(last_find_string)] && [string eq $editor(find_string) $editor(last_find_string)]} {		
+	if {![string eq "" $editor(last_find_string)] && [string eq $editor(find_string) $editor(last_find_string)]} {
 		set s $pos
-		if {$key == "F4"} {set e "1.0"}		
+		if {$key == "F4"} {set e "1.0"}
 	}
-	
-	
+
+
 	# Do search
 	set find_string $editor(find_string)
-	
+
 	# backwards
 	if {$key == "F4"} {
 		if {$editor(match_case)} {set pos [$t search -backwards -- $find_string $s $e]
@@ -577,12 +583,12 @@ proc search_find_next { editor_no {key F3}} {
 	} elseif {$editor(match_case)} {set pos [$t search -- $find_string $s $e]
 	} else {set pos [$t search -nocase -- $find_string $s $e]}
 
-	
+
 	# if found then move insert cursor to that position
 	if {$pos != ""} {
 		$t mark set insert $pos
 		$t see $pos
-		
+
 		set editor(last_find_string) $editor(find_string)
 
 		# highlight found word
@@ -591,17 +597,17 @@ proc search_find_next { editor_no {key F3}} {
 		set x [expr {$x + [string length $editor(find_string)]}]
 		$t tag remove sel 1.0 end
 		$t tag add sel $pos $line.$x
-		
+
 		if {$key == "F3"} {
 			# put cursor at selend, to enable continuing searching
 			$t mark set insert $line.$x
 			$t see $line.0
 		}
-		
+
 		focus -force $t
 		update_status $editor_no
 		return 1
-		
+
 	} else {
 		bell
 		set editor(last_find_string) ""
@@ -677,7 +683,7 @@ proc search_replace_command { editor_no w entry replace command } {
 	set editor(find_string) [$entry get]
 	set editor(replace_string) [$replace get]
 	set t $editor($editor_no,text)
-	
+
 	# check/add the string to the find history
 	set list [lsearch -exact $editor(find_history) $editor(find_string)]
 	if {$list != -1} {
@@ -701,7 +707,7 @@ proc search_replace_command { editor_no w entry replace command } {
 			# there is no selection
 			if {![llength [$t tag ranges sel]]} {
 				search_find_next $editor_no
-				
+
 			} else {replace_one $editor_no 1}
 		}
 		"all" {
@@ -720,7 +726,7 @@ proc search_replace_command { editor_no w entry replace command } {
 
 proc replace_one { editor_no {one 0}} {
 	global editor
-	
+
 	# replacing just one or all
 	if {$one || [search_find_next $editor_no]} {
 		set t $editor($editor_no,text)
@@ -730,7 +736,7 @@ proc replace_one { editor_no {one 0}} {
 		$t delete $start $end
 		$t insert [$t index insert] $editor(replace_string)
 		return 1
-		
+
 	} else {return 0}
 }
 
@@ -1142,12 +1148,12 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 		set font $editor(font)
 	}
 
-	
-	set tabwidth [font measure $font "kkk"]
-	
+
+	set editor(tabwidth) [font measure $font "kkk"]
+
 	supertext::text $t -xscrollcommand "$tx set" -yscrollcommand "$ty set" -exportselection 1 \
-		-wrap none -font $font -tabs "$tabwidth" -background #e7e7e7
-		
+        -wrap none -font $font -tabs "$editor(tabwidth)" -cursor @cursor98.cur -background #e7e7e7
+
 	$t insert end $data
 	$t reset_undo
 
@@ -1170,7 +1176,7 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 
 		# perform the specified command
 		set result \[eval uplevel \[list $t\_ \$command \$args\]\]
-		
+
 		if \{\[string equal \$command insert\] || \[string equal \$command delete\]\} \{
 			# insert/delete? syntax highlight the newly inserted text & checkall procedures
 			set line2 \[lindex \[split \[$t\_ index insert\] .\] 0\]
@@ -1200,10 +1206,10 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	#bind $t <KeyRelease> "update_status $editor_no"
 	#bind $t <ButtonRelease> "update_status $editor_no"
 	bind $t <Alt-u> "update_status $editor_no;break"
-	
+
 	bind $t <Shift-Return> "comment_add $editor_no;break"
 	bind $t <Shift-BackSpace> "comment_remove $editor_no;break"
-	
+
 	# Pass keysym to callback with %K
 	bind $t <Control-Up> "move_manylines %W %K;break"
 	bind $t <Control-Down> "move_manylines %W %K;break"
@@ -1212,18 +1218,25 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	bind $t <Control-J> "$t yview scroll -1 units;break"
 	bind $t <Control-U> "$t yview scroll 1 units;break"
 	bind $t <Return> "return_override %W;break"
-	
+
+
+	bind $t <Control-O> "check_indent_depth %W;break"
+	# OR:
+	#bind $t <Control-O> "check_indent_depth \{[$t get 1.0 end]\};break"
+
+
+
 	# Insert Tab
 	bind $t <Control-Tab> "$t insert insert \"\t\";break"
-	
+
 	bind $t <Alt-a> "goto_linestart $editor_no;break"
 	bind $t <Alt-e> "$t mark set insert {insert lineend};break"
-	
+
 
 	# Spaces to Tabs in indentation in curline, need to be at indent0
 	bind $t <F10> "replace_4_spaces $editor_no;break"
 
-	
+
 	# Convenience
 	bind $t <Alt-c> "event generate $t <<Copy>>;break"
 	bind $t <Alt-v> "event generate $t <<Paste>>;break"
@@ -1232,10 +1245,10 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	bind $t <Alt-r> "search_replace $editor_no;break"
 	bind $t <Control-X> "syntax_highlight $editor_no 1 end;update_status $editor_no;break"
 	bind $t <Alt-l> "goto_line $editor_no;break"
-	
-	
+
+
 	##########################################
-	
+
 
 	bind $t <Control-r> "search_replace $editor_no;break"
 	bind $t <Control-f> "search_find $editor_no;break"
@@ -1244,7 +1257,7 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 
 	bind $t <Control-l> "goto_line $editor_no;break"
 	bind $t <Control-s> "save_file $editor_no;break"
-	
+
 ##	if {$::tcl_platform(platform) == "windows"} {
 ##		bind $t <Control-p> "print_file $editor_no;break"
 ##	}
@@ -1257,9 +1270,9 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 
 	# Double click on text brace: Select the braces
 	bind $t <Double-Button> {if {[selectClosingBrace %W]} {break}}
-		
 
-	# See syntax_highlighting procedure for details of each tag	
+
+	# See syntax_highlighting procedure for details of each tag
 	$t tag configure command -foreground blue
 	$t tag configure number -foreground DarkGreen
 	$t tag configure proc -foreground blue -font {Verdana 9 bold}
@@ -1302,22 +1315,22 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 
 proc center_view { editor_no key} {
 	global editor
-	
-	# note: There must not to be space after comma
+
+	# There must not to be space after comma
 	set t $editor($editor_no,text)
 	#puts $key
 
-	# Note: to copy from edit.com: use selection tool
+	# to copy from edit.com: use selection tool
 	set text_widget_height [winfo height $t]
-	
-	# Note: get last list item from list generated by bbox
+
+	# get last list item from list generated by bbox
 	set bbox_height [lindex [$t bbox @0,0] end]
 	#puts "$text_widget_height $bbox_height"
 
-	# Note: a/b is floored by default --> same as a//b in python
+	# a/b is floored by default --> same as a//b in python
 	set num_lines [expr {$text_widget_height/$bbox_height}]
 	set num_scroll [expr {$num_lines/3}]
-	
+
 	set pos [$t index insert]
 	# Lastline of visible window
 	set lastline_screen [expr {int(floor([$t index @0,65535]))}]
@@ -1329,11 +1342,7 @@ proc center_view { editor_no key} {
 	if {[string eq $key j] } {
 		set num_scroll [expr {$num_scroll*-1}]
 
-		#####################################		
-		# Note: *elseif* NOT elif #####################
-		#####################################
-
-		# Near fileend	
+		# Near fileend
 		} elseif { [expr {$curline + 2*$num_scroll + 2 > $lastline}] } {
 			$t insert end [string repeat "\n" $num_scroll]
 			$t mark set insert $pos
@@ -1347,7 +1356,7 @@ proc center_view { editor_no key} {
 
 proc return_override {w} {
 	lassign [split [$w index insert] "."] line col
-	
+
 	proc finish_return {w line} {
 		$w see "[expr {$line + 1}].0"
 		$w edit separator
@@ -1363,13 +1372,13 @@ proc return_override {w} {
 	set tmp [$w get "insert linestart" "insert lineend"]
 	set left_part [string range $tmp 0 [expr {$col - 1}]]
 	set right_part [string range $tmp $col end]
-	
+
 	# Cursor is inside indentation and line is not empty
 	if {[string is space $left_part] && ![string is space $right_part] && $right_part ne ""} {
 		$w insert insert "\n"
 		$w insert "[expr {$line + 1}].0" $left_part
 		return [finish_return $w $line]
-		
+
 	} else {
 		if {[string is space $right_part]} {
 			$w delete insert "insert lineend"
@@ -1384,23 +1393,145 @@ proc return_override {w} {
 		# Insert newline and add indentation
 		$w insert insert "\n"
 		$w insert insert [string repeat "\t" $i]
-		return [finish_return $w $line]	
+		return [finish_return $w $line]
 	}
+}
+
+proc check_indent_depth {w} {
+	set contents [$w get insert {insert +20 lines}]
+	#set contents $w
+
+	# Avainsanat, joita etsitään rivin alusta (tai sisennyksen jälkeen)
+	set words {proc if for while}
+	set lines [split $contents "\n"]
+	set num_lines [llength $lines]
+	puts $lines
+	puts $num_lines
+
+	for {set i 0} {$i < $num_lines} {incr i} {
+		set line [lindex $lines $i]
+		set trimmed_line [string trim $line]
+
+		# Tarkistetaan löytyykö jokin avainsanoista ja päättyykö rivi kaksoispisteeseen
+		set found_word 0
+		foreach word $words {
+			if {[string match "$word*" $trimmed_line]} {
+				set found_word 1
+				break
+			}
+		}
+
+		if {!$found_word || [string index $trimmed_line end] ne "\{"} {
+			continue
+		}
+
+		# Etsitään seuraava ei-tyhjä rivi (offset)
+		set next_line ""
+		for {set offset [expr {$i + 1}]} {$offset < $num_lines} {incr offset} {
+			set temp [lindex $lines $offset]
+			if {[string trim $temp] ne ""} {
+				set next_line $temp
+				break
+			}
+		}
+
+		if {$next_line eq ""} continue
+
+		# Lasketaan nykyisen rivin sisennys (indent_0)
+		set indent_0 [expr {[string length $line] - [string length [string trimleft $line " \t"]]}]
+
+		# Lasketaan seuraavan rivin sisennys (indent_1) ja tarkistetaan välilyönnit
+		set indent_1 0
+		set flag_space 0
+
+		# Käydään läpi seuraavan rivin alkumerkit
+		set chars [split $next_line ""]
+		foreach char $chars {
+			if {$char eq " "} {
+				set flag_space 1
+				incr indent_1
+			} elseif {$char eq "\t"} {
+				incr indent_1
+			} else {
+				break
+			}
+		}
+
+		set indent_diff [expr {$indent_1 - $indent_0}]
+		puts "line $i, indent diff: $indent_diff"
+		return ""
+
+##        # Testit: Jos sisennys ei kasva tai on tabulaattoreita (yli 1 merkki kerrallaan)
+##        if {$indent_diff <= 0 || (!$flag_space && $indent_diff > 1)} {
+##            continue
+##        }
+
+##        # Jos käytössä ei ole välilyöntejä, kaikki on kunnossa (False, 0)
+##        if {!$flag_space} {
+##            return [list 0 0]
+##        }
+
+##        # Jos löytyi välilyöntejä, verrataan niitä olion omaan asetukseen (ind_depth)
+##        # Oletetaan, että $ind_depth on luokan muuttuja
+##        if {$indent_diff != $ind_depth} {
+##            return [list 1 $indent_diff]
+##        } else {
+##            return [list 0 0]
+##        }
+
+	}
+##    # Oletuspalautus
+##    return [list 0 0]
 }
 
 
 proc move_manylines { w key} {
+	global editor
+
 	set line [get_line_as_int $w]
+
+	set bbox_height $editor(bbox_height)
+	set text_widget_height $editor(text_widget_height)
+	set num_lines [expr {$text_widget_height/$bbox_height}]
+
+	# Lastline of visible window
+	set lastline_screen [expr {int(floor([$w index @0,65535]))}]
+	set firstline_screen [expr {$lastline_screen - $num_lines}]
+	set curline [expr {int(floor([$w index insert])) -1}]
+	set to_up [expr {$curline - $firstline_screen}]
+	set to_down [expr {$lastline_screen - $curline}]
+
+	set near [expr {$to_down < 10 ? 1 : 0}]
 	set mult 1
-	if {[string eq $key Up]} {set mult -1}
-	
-	for {set x 1} {$x < 11} {incr x} {
+	if {$key == "Up"} {
+		set mult -1
+		set near [expr {$to_up < 10 ? 1 : 0}]
+	}
+
+	# First line without wait, since there is some overhead already
+	set line [expr {$line +$mult}]
+	$w mark set insert $line.0
+	if {$near} {
+		$w yview scroll $mult units
+		update idletasks
+		}
+	$w see $line.0
+
+	set waiting 28
+	if {$near} {	set waiting 12}
+
+	# Apply wait to rest of lines
+	for {set x 1} {$x < 10} {incr x} {
 		set line [expr {$line +$mult}]
-		set wait [expr {$x*28}]
+		set wait [expr {$x*$waiting}]
 
 		# after script has to be in quotation marks instead of curlies
 		# if want to access variables
 		after $wait "$w mark set insert $line.0
+				if {$near} {
+					$w yview scroll $mult units
+					update idletasks
+					}
 				$w see $line.0"
 	}
 }
@@ -1409,6 +1540,8 @@ proc move_manylines { w key} {
 proc get_line_as_int { w {index insert} } {return [lindex [split [$w index $index] '.'] 0]}
 proc get_col_as_int { w {index insert} } {return [lindex [split [$w index $index] '.'] 1]}
 
+
+
 proc get_ind_depth { w {index insert} } {
 	# get line
 	set tmp [$w get {insert linestart} {insert lineend} ]
@@ -1416,16 +1549,16 @@ proc get_ind_depth { w {index insert} } {
 	# get indent lenght
 	set len_line [string length $tmp]
 	set len_trim [string length [string trimleft $tmp]]
-	
+
 	return [expr {$len_line - $len_trim}]
 }
 
 
 proc comment_add { editor_no } {
 	global editor
-	
+
 	set t $editor($editor_no,text)
-	
+
 	# get line-range of selection
 	set s [get_line_as_int $t sel.first]
 	set e [get_line_as_int $t sel.last]
@@ -1437,13 +1570,13 @@ proc comment_add { editor_no } {
 
 proc comment_remove { editor_no } {
 	global editor
-	
+
 	set t $editor($editor_no,text)
-	
+
 	# get line-range of selection
 	set s [get_line_as_int $t sel.first]
 	set e [get_line_as_int $t sel.last]
-	
+
 	for {set x $s} {$x <= $e} {incr x} {$t delete $x.0 $x.2}
 
 }
@@ -1462,18 +1595,44 @@ proc replace_4_spaces { editor_no } {
 	global editor
 	set t $editor($editor_no,text)
 
-	# if the cursor is at the start of 4 spaces then replace them with a tab character
-	
-	while {1} {
-		if {[$t get "insert" "insert+4c"] == "    "} {
-			$t delete "insert" "insert+4c"
-			$t insert "insert" "\t"
-		} else {break}
+##	set file $editor($editor_no,file)
+##	set fid [open $file w+]
+##	set t $editor($editor_no,text)
+##	puts -nonewline $fid [$t get 1.0 end]
+##	close $fid
+##	set editor($editor_no,status) ""
+
+	set cont [split [$t get 1.0 end] "\n"]
+	set lines ""
+
+	foreach line $cont {
+		
+		# First, strip whitespace from lines
+		set tmp [string trimright $line]
+		set num_spaces 0
+
+		for {set x 0} {$x < [string length $line]} {incr x} {
+			if {[string index $line $x] eq " "} {
+				incr num_spaces
+				set tmp [string trimleft $tmp " "]
+			} else {
+				break
+			}
+		}
+
+		set num_tabs [expr {$num_spaces/4}]
+		set indent [string repeat "\t" $num_tabs]
+		set ind_str "$indent$tmp"
+		lappend lines $ind_str
 	}
 
-	set line_no [expr {[get_line_as_int $t] + 1}]
-	$t mark set insert "$line_no.0"
-	$t see $line_no.0
+	$t delete 1.0 end
+	$t insert 1.0 [join $lines "\n"]
+
+
+##	set line_no [expr {[get_line_as_int $t] + 1}]
+##	$t mark set insert "$line_no.0"
+##	$t see $line_no.0
 }
 
 #== open file =======================================================#
@@ -1587,11 +1746,11 @@ proc close_window { editor_no {action ""} } {
 }
 
 #== exit editor =====================================================#
- 
+
 proc exit_editor {} {
 	global editor
 	global syntax
-	
+
 	# bbb
 	set t $editor($editor(current),text)
 	#set t $editor(1,text)
@@ -1797,7 +1956,7 @@ proc print_file { editor_no } {
 
 global editor
 global syntax
-global editor_no         
+global editor_no
 global file_types
 
 set editor(version) "1.12"
@@ -1886,15 +2045,6 @@ if {!$any_files} {
 } else {
 	make_window_active 1
 }
-
-
-
-
-
-
-
-
-
 
 
 

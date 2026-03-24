@@ -8,17 +8,17 @@
 
 
 # What is this?
-# 
-# This is a replacement for (or superset of , or subclass of, ...) 
+#
+# This is a replacement for (or superset of , or subclass of, ...)
 # the tk text widget. Its big feature is that it supports unlimited
-# undo. It also has two poorly documented options: -preproc and 
-# -postproc. 
+# undo. It also has two poorly documented options: -preproc and
+# -postproc.
 
 # The entry point to this widget is supertext::text; it takes all of
 # the same arguments as the standard text widget and exhibits all of
 # the same behaviors.  The proc supertext::overrideTextCommand may be
 # called to have the supertext widget be used whenever the command
-# "text" is used (ie: it imports supertext::text as the command "text"). 
+# "text" is used (ie: it imports supertext::text as the command "text").
 # Use at your own risk...
 
 # To access the undo feature, use ".widget undo". It will undo the
@@ -31,71 +31,71 @@ package provide supertext 1.01
 
 namespace eval supertext {
 
-    variable undo
-    variable undoIndex
-    variable text "::text"
-    variable preProc
-    variable postProc
+	variable undo
+	variable undoIndex
+	variable text "::text"
+	variable preProc
+	variable postProc
 
-    namespace export text
+	namespace export text
 }
 
 # this proc is probably attempting to be more clever than it should...
-# When called, it will (*gasp*) rename the tk command "text" to "_text_", 
-# then import our text command into the global scope. 
+# When called, it will (*gasp*) rename the tk command "text" to "_text_",
+# then import our text command into the global scope.
 #
 # Use at your own risk!
 
 proc supertext::overrideTextCommand {} {
-    variable text
+	variable text
 
-    set text "::_text_"
-    rename ::text $text
-    uplevel #0 namespace import supertext::text
+	set text "::_text_"
+	rename ::text $text
+	uplevel #0 namespace import supertext::text
 }
 
 proc supertext::text {w args} {
-    variable text
-    variable undo
-    variable undoIndex
-    variable preProc
-    variable postProc
+	variable text
+	variable undo
+	variable undoIndex
+	variable preProc
+	variable postProc
 
-    # this is what we will rename our widget proc to...
-    set original __$w
+	# this is what we will rename our widget proc to...
+	set original __$w
 
-    # do we have any of our custom options? If so, process them and 
-    # strip them out before sending them to the real text command
-    if {[set i [lsearch -exact $args "-preproc"]] >= 0} {
+	# do we have any of our custom options? If so, process them and
+	# strip them out before sending them to the real text command
+	if {[set i [lsearch -exact $args "-preproc"]] >= 0} {
 	set j [expr $i + 1]
 	set preProc($original) [lindex $args $j]
 	set args [lreplace $args $i $j]
-    } else {
+	} else {
 	set preProc($original) {}
-    }
+	}
 
-    if {[set i [lsearch -exact $args "-postproc"]] >= 0} {
+	if {[set i [lsearch -exact $args "-postproc"]] >= 0} {
 	set j [expr $i + 1]
 	set postProc($original) [lindex $args $j]
 	set args [lreplace $args $i $j]
-    } else {
+	} else {
 	set postProc($original) {}
-    }
+	}
 
-    # let the text command create the widget...
-    eval $text $w $args
+	# let the text command create the widget...
+	eval $text $w $args
 
-    # now, rename the resultant widget proc so we can create our own
-    rename ::$w $original
+	# now, rename the resultant widget proc so we can create our own
+	rename ::$w $original
 
-    # here's where we create our own widget proc.
-    proc ::$w {command args} \
-        "namespace eval supertext widgetproc $w $original \$command \$args"
-    
-    # set up platform-specific binding for undo; the only one I'm
-    # really sure about is winders; the rest will stay the same for
-    # now until someone has a better suggestion...
-    switch $::tcl_platform(platform) {
+	# here's where we create our own widget proc.
+	proc ::$w {command args} \
+		"namespace eval supertext widgetproc $w $original \$command \$args"
+
+	# set up platform-specific binding for undo; the only one I'm
+	# really sure about is winders; the rest will stay the same for
+	# now until someone has a better suggestion...
+	switch $::tcl_platform(platform) {
 	unix 		{
 		event add <<Undo>> <Control-z>
 		event add <<Undo>> <Control-Z>
@@ -108,60 +108,60 @@ proc supertext::text {w args} {
 		event add <<Undo>> <Control-z>
 		event add <<Undo>> <Control-Z>
 	}
-    }
-    bind $w <<Undo>> "$w undo"
+	}
+	bind $w <<Undo>> "$w undo"
 
-    set undo($original)	{}
-    set undoIndex($original) -1
-    set clones($original) {}
+	set undo($original)	{}
+	set undoIndex($original) -1
+	set clones($original) {}
 
-    return $w
+	return $w
 }
 
-# this is the command that we associate with a supertext widget. 
+# this is the command that we associate with a supertext widget.
 proc supertext::widgetproc {this w command args} {
 
-    variable undo
-    variable undoIndex
-    variable preProc
-    variable postProc
+	variable undo
+	variable undoIndex
+	variable preProc
+	variable postProc
 
-    # these will be the arguments to the pre and post procs
-    set originalCommand $command
-    set originalArgs $args
+	# these will be the arguments to the pre and post procs
+	set originalCommand $command
+	set originalArgs $args
 
-    # is there a pre-proc? If so, run it. If there is a problem,
-    # die. This is potentially bad, because once there is a problem
-    # in a preproc the user must fix the preproc -- there is no
-    # way to unconfigure the preproc. Oh well. The other choice
-    # is to ignore errors, but then how will the caller know if
-    # the proc fails?
-    if {[info exists preProc($w)] && $preProc($w) != ""} {
+	# is there a pre-proc? If so, run it. If there is a problem,
+	# die. This is potentially bad, because once there is a problem
+	# in a preproc the user must fix the preproc -- there is no
+	# way to unconfigure the preproc. Oh well. The other choice
+	# is to ignore errors, but then how will the caller know if
+	# the proc fails?
+	if {[info exists preProc($w)] && $preProc($w) != ""} {
 	if {[catch "$preProc($w) command args" error]} {
 	    return -code error "error during processing of -preproc: $error"
 	}
-    }
+	}
 
 
-    # if the command is "undo", we need to morph it into the appropriate
-    # command for undoing the last item on the stack
-    if {$command == "undo"} {
+	# if the command is "undo", we need to morph it into the appropriate
+	# command for undoing the last item on the stack
+	if {$command == "undo"} {
 
 	if {$undoIndex($w) == ""} {
 	    # ie: last command was anything _but_ an undo...
 	    set undoIndex($w) [expr [llength $undo($w)] -1]
 	}
 
-	# if the index is pointing to a valid list element, 
+	# if the index is pointing to a valid list element,
 	# lets undo it...
 	if {$undoIndex($w) < 0} {
 	    # nothing to undo...
 	    bell
 
 	} else {
-	    
+
 	    # data is a list comprised of a command token
-	    # (i=insert, d=delete) and parameters related 
+	    # (i=insert, d=delete) and parameters related
 	    # to that token
 	    set data [lindex $undo($w) $undoIndex($w)]
 
@@ -176,11 +176,11 @@ proc supertext::widgetproc {this w command args} {
 	    incr undoIndex($w) -1
 
 	}
-    }
+	}
 
-    # now, process the command (either the original one, or the morphed
-    # undo command
-    switch $command {
+	# now, process the command (either the original one, or the morphed
+	# undo command
+	switch $command {
 
 	reset_undo {
 		set undo($w) ""
@@ -192,18 +192,18 @@ proc supertext::widgetproc {this w command args} {
 	    # we have to deal with configure specially, since the
 	    # user could try to configure the -preproc or -postproc
 	    # options...
-	    
+
 	    if {[llength $args] == 0} {
-		# first, the case where they just type "configure"; lets 
+		# first, the case where they just type "configure"; lets
 		# get it out of the way
 		set list [$w configure]
 		lappend list [list -preproc preproc Preproc {} $preProc($w)]
 		lappend list [list -postproc postproc Postproc {} $postProc($w)]
 		set result $list
-		
-		
+
+
 	    } elseif {[llength $args] == 1} {
-		# this means they are wanting specific configuration 
+		# this means they are wanting specific configuration
 		# information
 		set option [lindex $args 0]
 		if {$option == "-preproc"} {
@@ -211,7 +211,7 @@ proc supertext::widgetproc {this w command args} {
 
 		} elseif {$option == "-postproc"} {
 		    set result [list -postproc postproc Postproc {} $postProc($w)]
-		    
+
 		} else {
 		    if {[catch "$w $command $args" result]} {
 			regsub $w $result $this result
@@ -220,7 +220,7 @@ proc supertext::widgetproc {this w command args} {
 		}
 
 	    } else {
-		# ok, the user is actually configuring something... 
+		# ok, the user is actually configuring something...
 		# we'll deal with our special options first
 		if {[set i [lsearch -exact $args "-preproc"]] >= 0} {
 		    set j [expr $i + 1]
@@ -247,7 +247,7 @@ proc supertext::widgetproc {this w command args} {
 	}
 
 	undo {
-	    # if an undo command makes it to here, that means there 
+	    # if an undo command makes it to here, that means there
 	    # wasn't anything to undo; this effectively becomes a
 	    # no-op
 	    set result {}
@@ -275,7 +275,7 @@ proc supertext::widgetproc {this w command args} {
 	    }
 
 	    # now, let the real widget command do the dirty work
-	    # of inserting the text. If we fail, do some munging 
+	    # of inserting the text. If we fail, do some munging
 	    # of the error message so the right widget name appears...
 
 	    if {[catch "$w $command $args" result]} {
@@ -293,11 +293,11 @@ proc supertext::widgetproc {this w command args} {
 		# of what we just did...
 		$w see $index2
 		$w mark set insert $index2
-		
+
 	    } else {
 		# since the original command wasn't undo, we need
 		# to reset the undoIndex. This means that the next
-		# time an undo is called for we'll start at the 
+		# time an undo is called for we'll start at the
 		# end of the stack
 		set undoIndex($w) ""
 	    }
@@ -329,7 +329,7 @@ proc supertext::widgetproc {this w command args} {
 	    } else {
 		# since the original command wasn't undo, we need
 		# to reset the undoIndex. This means that the next
-		# time an undo is called for we'll start at the 
+		# time an undo is called for we'll start at the
 		# end of the stack
 		set undoIndex($w) ""
 	    }
@@ -342,7 +342,7 @@ proc supertext::widgetproc {this w command args} {
 		return -code error $result
 	    }
 	}
-	
+
 	default {
 	    # if the command wasn't one of the special commands above,
 	    # just pass it on to the real widget command as-is. If
@@ -353,32 +353,33 @@ proc supertext::widgetproc {this w command args} {
 		return -code error $result
 	    }
 	}
-    }
+	}
 
-    # is there a post-proc? If so, run it. 
-    if {[info exists postProc($w)] && $postProc($w) != ""} {
+	# is there a post-proc? If so, run it.
+	if {[info exists postProc($w)] && $postProc($w) != ""} {
 	if {[catch "$postProc($w) originalCommand originalArgs" error]} {
 	    return -code error "error during processing of -postproc: $error"
 	}
-    }
+	}
 
 
-    # we're outta here! (I think this is faster than a 
-    # return, though I'm not 100% sure on this...)
-    set result $result
+	# we're outta here! (I think this is faster than a
+	# return, though I'm not 100% sure on this...)
+	set result $result
 }
 
 # this returns a normalized index (ie: line.column), with special
 # handling for the index "end"; to undo something we pretty much
 # _have_ to have a precise row and column number.
 proc supertext::text_index {w i} {
-    if {$i == "end"} {
+	if {$i == "end"} {
 	set index [$w index "end-1c"]
-    } else {
+	} else {
 	set index [$w index $i]
-    }
+	}
 
-    return $index
+	return $index
 }
+
 
 

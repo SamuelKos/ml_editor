@@ -1,44 +1,55 @@
 This is TODO of ML-editor
-ööää
 
-jos lähdetiedosto on utf-8 mutta system ei ole utf-8 esim win95
-set chan [open utf8_file.txt]
+###
+using
+config -cursor @cursor98.cur 
 
-# find system native encoding
-fconfigure $chan -encoding
-
-# set encoding of channel (to that of file was writed originally)
-fconfigure $chan -encoding utf-8
-
-set $cont [$chan read]
-close $chan
-
-# write file with system native encoding (for example in win95 native encoding which could be cp1252)
-set chan [open win95_native_enc.txt w]
-puts $chan $cont
-close $chan
-
-# note that in win95, dos has different encoding like cp850
-set chan [open dos_850_enc.txt w]
-fconfigure $chan -encoding cp850
-puts $chan $cont
-close $chan
+instead of builtin windows95 cursor
+takes away mousecursor blinking
+###
 
 
+3d-cursor
+search cursors set textwid
 
 
-if {cond1 && cond2}
-if {cond1 || cond2}
-is short-circuited like in python
+un/indent
 
 
-return over if end of ind with spaces --> sailing
-or inside indent
-after indent only tabs --> works
-	
+foreach f [font families] {puts $f}
+System
+Fixedsys
+Terminal
+MS Serif
+MS Sans Serif
+Courier
+Courier New
+Verdana
+Comic Sans MS
+Small Fonts
 
-search escape curlies etc, done?
-not done 
+
+
+verdana 9
+get ALL dimensions, in units of, self.pad -style
+example:
+proclist-window width == 100 * self.pad 
+text -window width
+scrollbar width
+etc?
+
+
+
+
+
+
+
+
+
+
+Tabify at fileopen/close
+rstrip at fileclose
+
 
 
 search bad index check:
@@ -47,11 +58,8 @@ not sure if yet fixed
 see err.txt
 
 
-Tabify at fileopen/close
-rstrip at fileclose
 
 
-horizontal scroll away? OR just some 'dumb bottom margin'? no?
 
 
 
@@ -73,6 +81,38 @@ horizontal scroll away? OR just some 'dumb bottom margin'? no?
 
 
 Notes Begin
+
+################
+#if file is encoded with utf-8, but system encoding is not utf-8, for example in win95
+set chan [open transl2.txt]
+
+#find system native encoding
+fconfigure $chan -encoding
+
+#set encoding of channel (to that of file was writed originally, utf-8 in this example)
+fconfigure $chan -encoding utf-8
+
+set cont [read $chan]
+close $chan
+#################
+#################
+#write file with system native encoding (for example in win95 native encoding could be cp1252)
+set chan [open native.txt w]
+puts $chan $cont
+close $chan
+
+note that in win95, dos has different encoding like cp850
+set chan [open dos_850_enc.txt w]
+fconfigure $chan -encoding cp850
+puts $chan $cont
+close $chan
+#################
+
+################
+if {cond1 && cond2}
+if {cond1 || cond2}
+is short-circuited like in python
+################
 
 #####################################
 quotes and all braces after: # are still counted!
