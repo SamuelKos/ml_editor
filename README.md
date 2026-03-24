@@ -6,7 +6,8 @@ should work in any platform with Tcl/Tk ~ 8.0 or better.
 
 # Featuring
 - Auto-indent
-- Syntax highlight
+- Comment/Uncomment
+- Syntax highlight (disabled for now, can do with some shortcut)
 - Procedure window
 - Right click on a word to have word copied to find-window
 - Editor can be invoked with file names on the command line, including wildcards
@@ -18,17 +19,10 @@ should work in any platform with Tcl/Tk ~ 8.0 or better.
 In ml-directory, enter either:
 - tclsh main.tcl
 - wish main.tcl
-- tclkit app-ml
+Currently don't know how to make this a starkit and not wanting to put binaries to version conrol.
 
-And it should launch. Font can currently be changed only by manually editing configuration file.
-Edit it after first exit. Tclkit can be getted from [here](https://www.bawt.tcl3d.org/apps.html)
-It is quite full with items, for example if downloaded tclkit for 8.6.17,
-and have normal Windows computer, then get: tclkit-8.6.17-win64-intel-tk.exe
-and rename it to tclkit.exe
-
-https://www.bawt.tcl3d.org/download.html
-https://www.bawt.tcl3d.org/download.html#tclpure
-
-
+And it should launch. Font can currently be changed only manually by editing configuration file.
+Edit it after first exit. Tcl/Tk can be getted from [here](https://www.bawt.tcl3d.org/download.html#tclpure)
+If can install from app repository or compile oneself, do so.
 
 
