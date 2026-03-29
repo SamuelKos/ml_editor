@@ -1,5 +1,54 @@
 This is TODO of ML-editor
 
+
+##	while {[set line [$t get $line_no.0 $next_no.0]] != "" && $line_no <= $end_line}
+
+
+Pentium 133, win95, activestate tcl 8.4
+Currently syntax highlight takes 23s/2300 lines
+or 1s/100 lines
+--> about twice as fast as in beginning but not good enough
+
+
+text widget is proxied in make_editor
+--> no need supertext for this
+In proxy proc $t, there is filtering for insert and delete,
+still there is later also binds for any key and button!
+these binds are nonsense and so is 'use' of supertext
+--> thinking about dump supertext, no?
+
+
+
+
+
+#####################################
+event <<BBB>> does NOT have to be binded to physical events with: event add.
+Official documentation does not tell how important this is to understand.
+-->INFO It is VERY important to understand that:
+virtual-events doesn't have to be binded to physical events with event add.
+
+Example:
+bind $mywidget <<BBB>> {puts jou}
+event generate $mywidget <<BBB>>
+--> jou
+
+
+Because -data attribute for virtual-events did not exist before tcl 8.5:
+Must use global variables, which is not bad option actually
+
+Important: update stringvar mydata before emitting virtual-event BBB
+Otherwise procs binded to this event would get triggered with old values:
+set mydata "$index $index2 $length [lindex $args 1]"
+event generate $this <<BBB>>
+#####################################		
+	 
+
+
+
+note cursor98 is win only
+test this in linux macos
+
+
 ###
 using
 config -cursor @cursor98.cur 
@@ -9,11 +58,11 @@ takes away mousecursor blinking
 ###
 
 
-3d-cursor
-search cursors set textwid
-
-
 un/indent
+comment
+etc
+needs check for doing one line only
+etc
 
 
 foreach f [font families] {puts $f}

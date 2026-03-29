@@ -6,10 +6,7 @@
 # this code is freely distributable, but is provided as-is with
 # no waranty expressed or implied.
 
-
-# What is this?
-#
-# This is a replacement for (or superset of , or subclass of, ...)
+# Supertext is a replacement for (or superset of , or subclass of, ...)
 # the tk text widget. Its big feature is that it supports unlimited
 # undo. It also has two poorly documented options: -preproc and
 # -postproc.
@@ -27,7 +24,16 @@
 # <Control-_>
 
 
+#################################
+# About: $this
+# $this is reference to actual instance of supertext::text
+# It is like self in Python
+#################################
+
+
 package provide supertext 1.01
+
+global mydata
 
 namespace eval supertext {
 
@@ -36,7 +42,10 @@ namespace eval supertext {
 	variable text "::text"
 	variable preProc
 	variable postProc
-
+	####
+    #variable data
+	####
+	
 	namespace export text
 }
 
@@ -60,6 +69,9 @@ proc supertext::text {w args} {
 	variable undoIndex
 	variable preProc
 	variable postProc
+	######
+   global mydata
+	######
 
 	# this is what we will rename our widget proc to...
 	set original __$w
@@ -82,6 +94,13 @@ proc supertext::text {w args} {
 	set postProc($original) {}
 	}
 
+    #if {[set i [lsearch -exact $args "-stringvar"]] >= 0} {
+    #set j [expr $i + 1]
+    #set data(insert) [lindex $args $j]
+    #set args [lreplace $args $i $j]
+    #}
+
+	
 	# let the text command create the widget...
 	eval $text $w $args
 
@@ -125,7 +144,10 @@ proc supertext::widgetproc {this w command args} {
 	variable undoIndex
 	variable preProc
 	variable postProc
-
+	####
+   global mydata
+	####
+	
 	# these will be the arguments to the pre and post procs
 	set originalCommand $command
 	set originalArgs $args
@@ -254,25 +276,39 @@ proc supertext::widgetproc {this w command args} {
 	}
 
 	insert {
-
-	    if {[catch {set index  [text_index $w [lindex $args 0]]}]} {
+		#puts "insert"
+		
+		if {[catch {set index  [text_index $w [lindex $args 0]]}]} {
 		set index [lindex $args 0]
 	    }
 
-	    # since the insert command can have an arbitrary number
-	    # of strings and possibly tags, we need to ferret that out
-	    # now... what a pain!
-	    set myargs [lrange $args 1 end]
-	    set length 0
-	    while {[llength $myargs] > 0} {
-		incr length [string length [lindex $myargs 0]]
-		if {[llength $myargs] > 1} {
-		    # we have a tag...
-		    set myargs [lrange $myargs 2 end]
-		} else {
-		    set myargs [lrange $myargs 1 end]
+
+		##########################################
+		# $w insert index chars ?tags? ?chars? ?tags? ..
+		# --> Because insert command can have arbitrary number of strings and tags,
+		# need to figure out total lenght of added stuff,
+		# this is saved to variable: lenght
+		####################################
+		
+		set myargs [lrange $args 1 end]
+		# Total length
+		set length 0
+		while {[llength $myargs] > 0} {
+			
+			# Add lenght of next item to total lenght
+			incr length [string length [lindex $myargs 0]]
+			
+			# Is there more items
+			if {[llength $myargs] > 1} {
+				
+				# Next item is always treated as tag/taglist
+				# (if it does not exist, it is ignored)
+				set myargs [lrange $myargs 2 end]
+			
+			} else {
+				set myargs [lrange $myargs 1 end]
+			}
 		}
-	    }
 
 	    # now, let the real widget command do the dirty work
 	    # of inserting the text. If we fail, do some munging
@@ -300,6 +336,13 @@ proc supertext::widgetproc {this w command args} {
 		# time an undo is called for we'll start at the
 		# end of the stack
 		set undoIndex($w) ""
+		
+		#####################################
+		# Important: update stringvar mydata before emitting virtual-event BBB
+		# Otherwise procs binded to this event would get triggered with old value
+		set mydata "$index $index2 $length [lindex $args 1]"
+		event generate $this <<BBB>>        
+		#####################################		
 	    }
 
 	    # add a delete command on the undo stack.
@@ -308,7 +351,8 @@ proc supertext::widgetproc {this w command args} {
 	}
 
 	delete {
-
+		#puts delete
+		
 	    # this converts the insertion index into an absolute address
 	    set index [text_index $w [lindex $args 0]]
 

@@ -4,23 +4,11 @@ package require Tk
 
 #		(c) Peter Campbell Software; 28-04-2000 	     #
 #====================================================================#
-
-# some features
-# ==========
-# basic tcl syntax highlighting.
-# procedure window, select a procedure to go directly to it.
-# right click on a word to have the word "copied" to the "find" window
-# the editor can be invoked with file names on the command line, including wildcards (don't do too many)
-# brace matching - highlight matching braces when cursor is on a brace (also quotes & square brackets)
-# added a "search - grep" function
-# don't syntax highlight files at startup, do when they are first viewed
-
 # This program uses a global array editor() to store editor information
 # editor(window_number,window) = frame/window
 # editor(window_number,file)	 = file name
 # editor(window_number,status)	 = "" or "modified" (or "READ ONLY")
 # editor(window_number,procs)   = list of procedure names
-
 #====================================================================#
 
 proc centre_window { w } {
@@ -36,33 +24,13 @@ proc centre_window { w } {
 		wm geometry $w \"+\$x+\$y\""
 }
 
-# to start things rolling display a "splash screen"
-# see "Effective Tcl/Tk Programming" book, page 254-247 for reference
-wm withdraw .
-toplevel .splash -borderwidth 4 -relief raised
-wm overrideredirect .splash 1
-
-centre_window .splash
-
-label .splash.info -text "https://github.com/SamuelKos" -font {Arial 9}
-pack .splash.info -side bottom -fill x
-
-label .splash.title -text "-- ML Editor Tcl/Tk --" -font {Arial 18 bold} -fg blue
-pack .splash.title -fill x -padx 8 -pady 8
-
-set splash_status "Loading configuration file ..."
-label .splash.status -textvariable splash_status -font {Arial 9} -width 50 -fg darkred
-pack .splash.status -fill x -pady 8
-
-update
-
 if {[catch "package require combobox"]} {
 source lib/app-ml/combobox.tcl
 }
 
-if {[catch "package require supertext"]} {
-source lib/app-ml/supertext.tcl
-}
+##if {[catch "package require supertext"]} {
+##source lib/app-ml/supertext.tcl
+##}
 
 # == miscellaneous =================================================#
 
@@ -77,24 +45,43 @@ proc log {message} {
 #== syntax highlight ================================================#
 
 proc tag_word {editor_no word t line_no startx x {tag_name ""}} {
-	global editor
-	global syntax
-	set ext $editor($editor_no,extension)
+	global editor syntax tokens kwords
 
-	if {$tag_name != ""} {
-		$t tag add $tag_name $line_no.$startx $line_no.$x
-	} elseif {[array names syntax $ext,$word] != ""} {
-		$t tag add command $line_no.$startx $line_no.$x
+	# This takes 14s of 38s when doing whole ml.tcl
+	# and 14s of 30s of general lines
+	
+##	set t1 [clock clicks -milliseconds]
+	
+	
+	if {[string range $word 0 0] == "$"} {
+		lappend tokens(variable) $line_no.$startx
+		lappend tokens(variable) $line_no.$x
+		#incr tokens(variable)
+		
+	} elseif {[lsearch -sorted $kwords $word] != -1} {
+		lappend tokens(command) $line_no.$startx
+		lappend tokens(command) $line_no.$x
+		#incr tokens(command)
+		
 	} elseif {[string is double -strict $word]} {
-		$t tag add number $line_no.$startx $line_no.$x
-	} elseif {[string range $word 0 0] == "$"} {
-		$t tag add variable $line_no.$startx $line_no.$x
+		lappend tokens(number) $line_no.$startx
+		lappend tokens(number) $line_no.$x
+		#incr tokens(number)
+	
+	} else {
+		incr tokens(other)
 	}
+
+	incr tokens(total)
+	
+##	set t2 [clock clicks -milliseconds]
+##	set tokens [expr {$tokens+($t2-$t1)}]
+	
 }
 
 
 proc syntax_highlight { editor_no start_line end_line } {
-	global editor
+	global editor tokens
 
 	set t $editor($editor_no,text)
 
@@ -104,7 +91,7 @@ proc syntax_highlight { editor_no start_line end_line } {
 		set end $end_line.end
 	}
 
-	# remove all existing tags from the text (excluding the proc tag)
+	# Remove all existing tags from the text (excluding the proc tag)
 	foreach tag {command comment string number variable} {
 		$t tag remove $tag $start_line.0 $end
 	}
@@ -118,24 +105,40 @@ proc syntax_highlight { editor_no start_line end_line } {
 	} else {
 		set proc_no $editor($editor_no,proc_no)
 	}
+	
+	set line ""	
+	set t00 [clock seconds]
+	set tokens(total) 0
+	set tokens(quot) {}
+	set tokens(number) {}
+	set tokens(comment) {}
+	set tokens(proc) {}
+	set tokens(variable) {}
+	set tokens(command) {}
+	set tokens(other) 0
+	
 
-	while {[set line [$t get $line_no.0 $next_no.0]] != "" && $line_no <= $end_line} {
-		# replace all tabs with spaces for consistency/simpler comparisons
-		regsub -all "\t" $line " " line
+	set cont [split [$t get $start_line.0 $end]	"\n"]
 
+	foreach line $cont {
+		if {$line != "" } {
 		set trimmed [string trim $line]
 		set we [string wordend $trimmed 0]
 		set first_word [string range $trimmed 0 [expr {$we - 1}]]
 
 		if {[string range $trimmed 0 0] == "#"} {
-			# comment line, simply colour the whole line
-			$t tag add comment $line_no.0 $line_no.end
+			# Comment line, simply colour the whole line
+			lappend tokens(comment) $line_no.0
+			lappend tokens(comment) $line_no.end		
+			incr tokens(total)
+
 		} elseif {$first_word == "proc"} {
-			#proc statement, colour the whole line and add the proc name to the proc list
+			# This takes < 1s
+			# proc statement, colour the whole line and add the proc name to the proc list
 			set end [string first " " $trimmed [expr {$we + 1}]]
 			if {$end == -1} {
-				# provide some extra handling for procedure names ending with semi-colon
-				# this to support some other languages besides tcl
+				# Provide some extra handling for procedure names ending with semi-colon
+				# to support some other languages besides tcl
 				set end [string first ";" $trimmed [expr {$we + 1}]]
 			}
 
@@ -152,11 +155,17 @@ proc syntax_highlight { editor_no start_line end_line } {
 					incr proc_no
 					$t mark set mark_$proc_no $line_no.0
 					lappend editor($editor_no,procs) [list $proc_name $proc_no]
-					$t tag add proc $line_no.0 $line_no.end
+					
+					lappend tokens(proc) $line_no.0
+					lappend tokens(proc) $line_no.end
+					incr tokens(total)
+					
 				}
 			}
+			
 		} else {
-			# general line, review all words within the line and colourise appropriately
+			# This takes 30s of 38	(and tag_word takes 14s of those 30s)
+			# General line, check all words in curline and tag them
 			set startx 0
 			set word ""
 			set length [string length $line]
@@ -164,31 +173,93 @@ proc syntax_highlight { editor_no start_line end_line } {
 
 			for {set x 0} {$x < $length} {incr x} {
 				set c [string range $line $x $x]
+				
+				# On going quotation
 				if {$quote != 0} {
+					# End of quot reached
 					if {$c == $quote} {
-						tag_word $editor_no $word $t $line_no $startx [expr {$x + 1}] "string"
+						lappend tokens(quot) $line_no.$startx
+						lappend tokens(quot) $line_no.[expr {$x + 1}]
+						incr tokens(total)
+		
 						set quote 0
 						set word ""
 					}
-				} elseif {[string first $c "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.$:"] != -1} {
+				
+				# All other words
+				# lsearch seems to be as fast as string first
+				# "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.$:"
+				# "$.abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ:"
+				
+				} elseif { [string first $c "$.abcdefghijklmnopqrstuvwxyz0123456789_:ABCDEFGHIJKLMNOPQRSTUVWXYZ"] != -1 } {
 					if {$word == ""} { set startx $x }
 					append word $c
+				
+				# End of previous elseif word reached
 				} elseif {$word != ""} {
 					tag_word $editor_no $word $t $line_no $startx $x
 					set word ""
+				
+				# Start of quot
 				} elseif {$c == "\"" || $c == "'"} {
 					set startx $x
 					set quote $c
 				}
 				if {$c == "\\"} { incr x }
 			}
-
+			
+			# This is after: previous for-loop,
+			# is likely needed to tag last non quot word
 			if {$word != ""} {tag_word $editor_no $word $t $line_no $startx $x}
 		}
 
-		incr line_no
-		incr next_no
 	}
+	
+	# This is after: if line is not empty
+	incr line_no
+	incr next_no
+	}
+	
+	
+	# This is after: foreach
+	############
+	# If taglist is not empty, expand it for not-so-wise: tag add.
+	# (Not-so-wise meaning: it cant read from list!)
+	# Do expansion by: inserting command: $t tag add proc (if tagging proc-tag)
+	# into start , (idx 0), of this taglist: $tokens(proc)
+	# Comment: not intuitive
+	
+	# Q: Why not just: $t tag add proc $tokens(proc)?
+	# A: Again, tag add is not so wise, and when using tcl 8.4,
+	# there is no list expansion operator, yet.
+	# This could be done with eval also.
+	if {[llength $tokens(proc)] > 0} [linsert $tokens(proc) 0 $t tag add proc]
+	if {[llength $tokens(quot)] > 0} [linsert $tokens(quot) 0 $t tag add string]
+	if {[llength $tokens(number)] > 0} [linsert $tokens(number) 0 $t tag add number]
+	if {[llength $tokens(comment)] > 0} [linsert $tokens(comment) 0 $t tag add comment]
+	if {[llength $tokens(variable)] > 0} [linsert $tokens(variable) 0 $t tag add variable]
+	if {[llength $tokens(command)] > 0} [linsert $tokens(command) 0 $t tag add command]
+	############
+	
+	
+	
+	
+	
+	set t22 [clock seconds]
+	set t1t2 [expr {$t22-$t00}]
+##	set tokens [expr {$tokens/1000}]
+	puts "syntax highlight took $t1t2 seconds"
+	#puts "$tokens(proc)"
+	
+##	puts "proc:\t$tokens(proc)\
+##\nnumber:\t$tokens(number)\
+##\nquot:\t$tokens(quot)\
+##\ncomment:$tokens(comment)\
+##\ndollar:\t$tokens(variable)\
+##\ncommand:$tokens(command)\
+##\nother:\t$tokens(other)\
+##\ntotal:\t$tokens(total)"
+
 
 	# store the most recent procedure number (proc_no)
 	set editor($editor_no,proc_no) $proc_no
@@ -272,8 +343,8 @@ proc update_status { editor_no } {
 		set proc [lindex $procs 0]
 		set no [lindex $procs 1]
 		set original_bg [$sw cget -background]
-		$sw tag bind proc_$no <Any-Enter> "$sw tag configure proc_$no -background skyblue1"
-		$sw tag bind proc_$no <Any-Leave> "$sw tag configure proc_$no -background $original_bg"
+		$sw tag bind proc_$no <Enter> "$sw tag configure proc_$no -background skyblue1"
+		$sw tag bind proc_$no <Leave> "$sw tag configure proc_$no -background $original_bg"
 		$sw tag bind proc_$no <1> "$t mark set insert mark_$no;$t see insert;update_status $editor_no"
 		$sw insert end "$proc\n" proc_$no
 	}
@@ -311,7 +382,7 @@ proc make_window_active { editor_no } {
 	set m .menu.file
 	menu $m -tearoff 0
 	.menu add cascade -label "File" -menu $m -underline 0
-	$m add command -label "New" -command make_editor -underline 0
+    $m add command -label "New" -command make_editor -underline 0
 	$m add command -label "Open" -command "open_file $editor_no" -underline 0
 	$m add command -label "Save" -command "save_file $editor_no" -underline 0 -accelerator Ctrl+S
 	$m add command -label "Save As" -command "save_file_as $editor_no" -underline 5
@@ -424,8 +495,8 @@ proc about_window {} {
 	wm title $w "About - ML Editor"
 
 	label $w.1 -text "ML Text Editor v$editor(version)" -font {Arial 18 bold} -fg blue
-	label $w.2 -text "ML was originally written by Peter Campbell\nCurrent author is SamuelKos\nhttps://github.com/SamuelKos" -font {Arial 11} -fg darkblue
-	label $w.3 -text "Additional credit to Bryan Oakley for combobox.tcl & supertext.tcl" -font {Arial 10} -fg darkred
+	label $w.2 -anchor w -text "2025- SamuelKos github.com/SamuelKos" -font {Arial 11}
+	label $w.3 -anchor w -text "Originally written by Peter Campbell in 2000\nAdditional credit to Bryan Oakley for combobox & supertext" -font {Arial 9} -fg darkred
 
 	button $w.b -text "Close" -command "destroy $w"
 
@@ -1077,12 +1148,14 @@ proc view_font_size { editor_no increment } {
 #== configure_window =================================================#
 
 proc configure_window {} {
-	# trap the EXIT [X] button "exit editor"
+    global testrun
+
+    # trap the EXIT [X] button "exit editor"
 	wm protocol . WM_DELETE_WINDOW "exit_editor"
 
 	# on windows we can maximise the window by default
 	global tcl_platform
-	if {$tcl_platform(platform) == "windows" && [info tclversion] >= 8.3} {
+	if {!$testrun && $tcl_platform(platform) == "windows" && [info tclversion] >= 8.3} {
 		wm state . zoomed
 	}
 }
@@ -1093,8 +1166,8 @@ proc configure_window {} {
 # this procudure is called on start-up to load the files specified on the command line and for every "file open"
 
 proc make_editor { {file ""} {display_window 1} {highlight 0} } {
-	global editor editor_no splash_status
-
+	global editor editor_no splash_status testrun
+	
 	set w [frame .w[incr editor_no]]
 
 	set editor($editor_no,window) $w
@@ -1107,7 +1180,7 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	if {$file == ""} {
 		set data ""
 		set file "Untitled"
-		# new files are always writable
+		# New files are always writable
 		set editor($editor_no,writable) 1
 	} elseif {[catch {set fid [open $file]} msg]} {
 		tk_messageBox -type ok -icon error -title "File Open Error" \
@@ -1121,27 +1194,34 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 
 		set data [read -nonewline $fid]
 		close $fid
-		# record whether or not the file can be saved (is the file writable?)
+		# Record whether or not the file can be saved (is the file writable?)
 		set editor($editor_no,writable) [file writable $file]
 		if {!$editor($editor_no,writable)} {
 			set editor($editor_no,status) "READ ONLY"
 		}
 	}
 
-	# create the main display frames (1 = editor, 2 = status/procedure window)
+	# Create the main display frames (1 = editor, 2 = status/procedure window)
 	set f1 [frame $w.f1]
 	set f2 [frame $w.f2]
 
+	# text-widget carousel BEGIN ###########################################
+	#################################
+	# Set string/name/windowpath for main text-widget,
+	# Save it to variable: t
 	set t $f1.text
+	# Save it also to variable editor($editor_no,text)
 	set editor($editor_no,text) $t
+	#################################
+	
 
-	# save the file extension, this is used for syntax highlighting commands
+	# Save the file extension, this is used for syntax highlighting commands
 	set editor($editor_no,extension) [string tolower [file extension $file]]
 
 	set tx $f1.tx
 	set ty $f1.ty
 
-	# has a font been specified in the configuration file (ml_cfg.ml) for this file type?
+	# Has a font been specified in the configuration file (ml_cfg.ml) for this file type?
 	if {[array names editor font,$editor($editor_no,extension)] != ""} {
 		set font $editor(font,$editor($editor_no,extension))
 	} else {
@@ -1151,62 +1231,96 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 
 	set editor(tabwidth) [font measure $font "kkk"]
 
-	supertext::text $t -xscrollcommand "$tx set" -yscrollcommand "$ty set" -exportselection 1 \
-        -wrap none -font $font -tabs "$editor(tabwidth)" -cursor @cursor98.cur -background #e7e7e7
+    set cur "@cursor98.cur"
+	if {$::tcl_platform(platform) != "windows"} {
+		set cur ""
+	}
+
+	####################################
+	# Create text-widget, save it to variable, named as value of string: t
+	# --> type of variable t changes, from just string to text-widget
+	####################################
+    text $t -xscrollcommand "$tx set" -yscrollcommand "$ty set" -exportselection 1 \
+            -wrap none -font $font -tabs "$editor(tabwidth)" -cursor $cur -background #e7e7e7
 
 	$t insert end $data
-	$t reset_undo
+    #$t reset_undo
 
 	set editor($editor_no,wordwrap) 0
 
-	# provide a calling routine for the $t/text procedure to trap insert/delete commands
-	rename $t $t\_
-	proc $t {command args} "
-		global editor
+	####################################
+	# Type of variable t changes yet again in this proc.
+	# Create proc, name it to literal: $t
+	# --> now when:
+	# 0: calling text-widget saved in variable t, for example: $t see 1.0
+	# 1: instead proc $t (right below) gets called
+	# This proc is quite short, only filtering insert and delete actions
+	####################################
+	
+	
+	# Currently, proxying below is not in use to gain some speed
+	
+##	rename $t $t\_
+##	proc $t {command args} "
+##		global editor
+##
+##		# store line number where insert/delete starts
+##		if \{\[string equal \$command insert\] || \[string equal \$command delete\]\} \{
+##			set line1 \[lindex \[split \[$t\_ index insert\] .\] 0\]
+##
+##			if {!$editor($editor_no,writable)} {
+##				bell
+##				return \"\"
+##			}
+##		\}
+##
+##		######################################################
+##		# Here: evaluate command in real text-widget
+##		# (meaning: doing normal text-widget stuff)
+##		set result \[eval uplevel \[list $t\_ \$command \$args\]\]
+##		######################################################
+##		
+##		
+##		if \{\[string equal \$command insert\] || \[string equal \$command delete\]\} \{
+##			# insert/delete? syntax highlight the newly inserted text & checkall procedures
+##			set line2 \[lindex \[split \[$t\_ index insert\] .\] 0\]
+##			#syntax_highlight $editor_no \$line1 \$line2
+##			validate_procedures $editor_no
+##			set editor($editor_no,status) MODIFIED
+##			$t see insert
+##		\}
+##
+##		if \{\[string equal \$command undo\]\} \{
+##			set editor($editor_no,status) MODIFIED
+##		\}
+##
+##		return \$result"
+##		#################### text-widget carousel END ##############
 
-		# store line number where insert/delete starts
-		if \{\[string equal \$command insert\] || \[string equal \$command delete\]\} \{
-			set line1 \[lindex \[split \[$t\_ index insert\] .\] 0\]
 
-			if {!$editor($editor_no,writable)} {
-				bell
-				return \"\"
-			}
-		\}
-
-		# perform the specified command
-		set result \[eval uplevel \[list $t\_ \$command \$args\]\]
-
-		if \{\[string equal \$command insert\] || \[string equal \$command delete\]\} \{
-			# insert/delete? syntax highlight the newly inserted text & checkall procedures
-			set line2 \[lindex \[split \[$t\_ index insert\] .\] 0\]
-			#syntax_highlight $editor_no \$line1 \$line2
-			validate_procedures $editor_no
-			set editor($editor_no,status) MODIFIED
-			$t see insert
-		\}
-
-		if \{\[string equal \$command undo\]\} \{
-			set editor($editor_no,status) MODIFIED
-		\}
-
-		return \$result"
-
+	#### This can be removed/commented out when using above proxy
+	set editor($editor_no,status) MODIFIED
+	####
+	
+	
 	scrollbar $tx -command "$t xview" -orient h
-	pack $tx -side bottom -fill x
-
 	scrollbar $ty -command "$t yview"
-	pack $ty -side right -fill y
-
-	pack $t -side left -fill both -expand yes
-
+    if {!$testrun} {
+		pack $tx -side bottom -fill x
+		pack $ty -side right -fill y
+		pack $t -side left -fill both -expand yes
+	}
 
 	##########################################
 	# Update screen/display status after every key/button release
 	#bind $t <KeyRelease> "update_status $editor_no"
 	#bind $t <ButtonRelease> "update_status $editor_no"
 	bind $t <Alt-u> "update_status $editor_no;break"
-
+	
+	
+	#bind $t <<BBB>> "filter_actions $editor_no;break"
+	
+	
 	bind $t <Shift-Return> "comment_add $editor_no;break"
 	bind $t <Shift-BackSpace> "comment_remove $editor_no;break"
 
@@ -1215,19 +1329,20 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	bind $t <Control-Down> "move_manylines %W %K;break"
 	bind $t <Control-j> "center_view $editor_no %K;break"
 	bind $t <Control-u> "center_view $editor_no %K;break"
-	bind $t <Control-J> "$t yview scroll -1 units;break"
-	bind $t <Control-U> "$t yview scroll 1 units;break"
+	bind $t <Control-J> "$t yview scroll 1 units;break"
+	bind $t <Control-U> "$t yview scroll -1 units;break"
 	bind $t <Return> "return_override %W;break"
 
 
-	bind $t <Control-O> "check_indent_depth %W;break"
+	#bind $t <Control-O> "check_indent_depth %W;break"
 	# OR:
 	#bind $t <Control-O> "check_indent_depth \{[$t get 1.0 end]\};break"
 
+	bind $t <Control-O> "test_run $editor_no;break"
 
-
-	# Insert Tab
-	bind $t <Control-Tab> "$t insert insert \"\t\";break"
+	
+	bind $t <Tab> "indentation_add $editor_no;break"
+	bind $t <Shift-Tab> "indentation_remove $editor_no;break"
 
 	bind $t <Alt-a> "goto_linestart $editor_no;break"
 	bind $t <Alt-e> "$t mark set insert {insert lineend};break"
@@ -1248,7 +1363,7 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 
 
 	##########################################
-
+	
 
 	bind $t <Control-r> "search_replace $editor_no;break"
 	bind $t <Control-f> "search_find $editor_no;break"
@@ -1276,27 +1391,32 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	$t tag configure command -foreground blue
 	$t tag configure number -foreground DarkGreen
 	$t tag configure proc -foreground blue -font {Verdana 9 bold}
-	$t tag configure comment -foreground green4
+    $t tag configure comment -foreground red4
+    #green4
 	$t tag configure variable -foreground red
 	$t tag configure string -foreground purple
 	$t tag configure sel -background skyblue
 	$t tag configure sel -foreground black
 
-	# create the right-hand frame
+	# Create right-hand frame
 	text $f2.procs -xscrollcommand "$f2.tx set" -yscrollcommand "$f2.ty set" \
 		-wrap none -font {Arial 8} -background #ffc800 -width 30 -cursor arrow
-	scrollbar $f2.tx -command "$f2.procs xview" -orient h
-	pack $f2.tx -side bottom -fill x
-	scrollbar $f2.ty -command "$f2.procs yview"
-	pack $f2.ty -side right -fill y
-	pack $f2.procs -side left -fill both -expand yes
-
+	
 	set editor($editor_no,status_window) $f2.procs
 
-	# pack the 3 frames
-	pack $f1 -side left -fill both -expand yes
-	pack $f2 -side left -fill y
-
+	scrollbar $f2.tx -command "$f2.procs xview" -orient h
+	scrollbar $f2.ty -command "$f2.procs yview"
+	
+    if {!$testrun} {
+		pack $f2.tx -side bottom -fill x
+		pack $f2.ty -side right -fill y
+		pack $f2.procs -side left -fill both -expand yes
+		
+		# pack the 3 frames
+		pack $f1 -side left -fill both -expand yes
+		pack $f2 -side left -fill y
+	}
+	
 	focus -force $t
 	$t mark set insert 1.0
 
@@ -1304,16 +1424,88 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 		#puts jou
 		#syntax_highlight $editor_no 1 end
 	}
+	
+##	set t1 [clock seconds]
+##	syntax_highlight $editor_no 1 end
+##	set t2 [clock seconds]
+##	set t1t2 [expr {$t2-$t1}]
+##	
+##	set lines [lindex [split [$t index end] "."] 0]
+##	puts $lines
+##	set lines [expr {$lines/100}]
+##	set time [expr {$t1t2/$lines}]
+##	puts "$editor_no: syntax highlight took $time seconds/100 lines"
+##	
+##	validate_procedures $editor_no
+##	set t3 [clock seconds]
+##	set t2t3 [expr {$t3-$t2}]
+##	puts "$editor_no: validate procedures took $t2t3 seconds"
 
+	
 	if {$display_window} {
 		make_window_active $editor_no
 	}
-
+	
+	$t configure -undo 1
 	return $editor_no
 }
 
 
-proc center_view { editor_no key} {
+proc filter_actions {editor_no} {
+	global editor
+	
+##	lassign [split $mydata] start_idx end_idx length cont
+##	lassign [split $start_idx "."] startline col
+##	lassign [split $end_idx "."] endline col
+##	
+##	set t1 [clock seconds]
+##	syntax_highlight $editor_no $startline $endline
+##
+##	set t2 [clock seconds]
+##	set t1t2 [expr {$t2-$t1}]
+##	puts "$editor_no: syntax highlight took $t1t2 seconds"
+##	validate_procedures $editor_no
+##
+##	set t3 [clock seconds]
+##	set t2t3 [expr {$t3-$t2}]
+##	puts "$editor_no: validate procedures took $t2t3 seconds"
+##	#puts $mydata
+
+
+##	# store line number where insert/delete starts
+##	if {[string equal $command insert] || [string equal $command delete]} {
+##		set line1 [lindex [split [$t index insert] .] 0]
+##
+##		if {!$editor($editor_no,writable)} {
+##			bell
+##			return ""
+##		}
+##	}
+
+##	######################################################
+##	# Here: evaluate command in real text-widget
+##	# (meaning: doing normal text-widget stuff)
+##	# set result [eval uplevel [list $t $command $args]]
+##	######################################################
+##	
+##	if {[string equal $command insert] || [string equal $command delete]} {
+##		# insert/delete? syntax highlight the newly inserted text & checkall procedures
+##		set line2 [lindex [split [$t index insert] .] 0]
+##		#syntax_highlight $editor_no $line1 $line2
+##		validate_procedures $editor_no
+##		set editor($editor_no,status) MODIFIED
+##		$t see insert
+##	}
+##
+##	if {[string equal $command undo]} {
+##		set editor($editor_no,status) MODIFIED
+##	}
+##
+##	return $result
+}
+	
+
+proc center_view {editor_no key} {
 	global editor
 
 	# There must not to be space after comma
@@ -1339,7 +1531,7 @@ proc center_view { editor_no key} {
 	set lastline [expr {int(floor([$t index end])) -1}]
 	set curline [expr {int(floor([$t index insert])) -1}]
 
-	if {[string eq $key j] } {
+	if {[string eq $key u] } {
 		set num_scroll [expr {$num_scroll*-1}]
 
 		# Near fileend
@@ -1541,6 +1733,51 @@ proc get_line_as_int { w {index insert} } {return [lindex [split [$w index $inde
 proc get_col_as_int { w {index insert} } {return [lindex [split [$w index $index] '.'] 1]}
 
 
+proc test_run {editor_no} {
+	global editor
+	set file $editor($editor_no,file)
+	set fid [open $file w+]
+	set t $editor($editor_no,text)
+	puts -nonewline $fid [$t get 1.0 end]
+	close $fid
+	
+	######bb
+	set dirname "lib/app-ml"
+	set fname "ml.tcl"
+	
+	# Create and initialize slave interpreter
+	set slave [interp create slave]
+	
+	#load {} Tk slave
+	set cmd [list source [file join $dirname $fname]]
+	$slave eval "set argv {--debug}"
+	
+	if [catch {$slave eval $cmd} result] {
+		puts "TESTRUN FAIL"
+		
+		global errorInfo
+		puts "\nTraceback, raising call first.\n"
+		#puts "Linenumbers for procs are counted from definition line:\n"
+		regexp {\(procedure \"(\w+)\" line (\d+)} $errorInfo m0 procname line
+		#puts stderr "$procname $line"		
+		puts stderr $errorInfo
+		
+		set pos [$t search -- "proc $procname" 1.0]
+		set pos [$t index "$pos +$line lines +1l linestart"]
+		$t mark set insert $pos 
+		
+##		set chan [open err.txt w]
+##		puts $chan $errorInfo
+##		close $chan
+##		puts "\nerror is saved to: err.txt"
+		
+	} else {puts "TESTRUN OK"}
+	
+
+	interp delete slave
+	######
+}
+
 
 proc get_ind_depth { w {index insert} } {
 	# get line
@@ -1553,17 +1790,47 @@ proc get_ind_depth { w {index insert} } {
 	return [expr {$len_line - $len_trim}]
 }
 
-
-proc comment_add { editor_no } {
+proc indentation_add { editor_no } {
 	global editor
 
 	set t $editor($editor_no,text)
-
+	if {[$t tag ranges sel] == ""} {
+		$t insert insert "\t"
+		return
+	}
+	
 	# get line-range of selection
 	set s [get_line_as_int $t sel.first]
 	set e [get_line_as_int $t sel.last]
-	#puts "$s $e"
 
+	for {set x $s} {$x <= $e} {incr x} {$t insert $x.0 "\t"}
+}
+
+proc indentation_remove { editor_no } {
+	global editor
+
+	set t $editor($editor_no,text)
+	if {[$t tag ranges sel] == ""} {
+		$t delete {insert linestart} {insert linestart +1c}
+		return
+	}
+	
+	# get line-range of selection
+	set s [get_line_as_int $t sel.first]
+	set e [get_line_as_int $t sel.last]
+
+	for {set x $s} {$x <= $e} {incr x} {$t delete $x.0 $x.1}
+}
+
+proc comment_add { editor_no } {
+	global editor
+	
+	set t $editor($editor_no,text)
+	
+	# get line-range of selection
+	set s [get_line_as_int $t sel.first]
+	set e [get_line_as_int $t sel.last]
+	
 	for {set x $s} {$x <= $e} {incr x} {$t insert $x.0 "##"}
 
 }
@@ -1700,7 +1967,7 @@ proc save_file_as { editor_no } {
 
 		# reset the undo status
 		set t $editor($editor_no,text)
-		$t reset_undo
+        #$t reset_undo
 
 		# update the file extension, this is used for syntax highlighting commands
 		set editor($editor_no,extension) [string tolower [file extension $file]]
@@ -1751,7 +2018,6 @@ proc exit_editor {} {
 	global editor
 	global syntax
 
-	# bbb
 	set t $editor($editor(current),text)
 	#set t $editor(1,text)
 
@@ -1958,12 +2224,26 @@ global editor
 global syntax
 global editor_no
 global file_types
+global testrun
+global tokens
+##global alnums
+global kwords
+
+
+set kwords [lsort [info command]]
+
+##set l [split "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.$:" ""]
+##set l [lsort $l]
+##set alnums $l
+
 
 set editor(version) "1.12"
 
 set editor_no 0
+set testrun 0
 
 set editor(current) ""
+
 
 # set default file extension
 set editor(default_ext) "tcl"
@@ -1971,7 +2251,7 @@ set editor(initial_dir) [pwd]
 set editor(grep_path) $editor(initial_dir)
 
 # set default font - saved in the ml_cfg.ml file (user needs to change manually)
-set editor(font) {Comic 9}
+set editor(font) {Courier 9}
 
 # files loaded since last use of editor (see proc exit_editor)
 set editor(file_history) {}
@@ -1987,8 +2267,45 @@ set editor(find_history) {}
 set editor(match_case) 0
 set editor(replace_history) {}
 
+
+########
+if {[info exists argc] && $argc} {
+	foreach name $argv {
+		if {$name=="--debug"} {
+		set testrun 1
+		puts "\nTESTRUN BEGIN"
+		break
+		}
+	}
+}
+
+
+if {!$testrun} {
+	# to start things rolling display splash screen
+	# see "Effective Tcl/Tk Programming" book, page 254-247 for reference
+	wm withdraw .
+	toplevel .splash -borderwidth 4 -relief raised
+	wm overrideredirect .splash 1
+	
+	centre_window .splash
+	
+	label .splash.info -text "https://github.com/SamuelKos" -font {Arial 9}
+	pack .splash.info -side bottom -fill x
+	
+	label .splash.title -text "-- ML Editor Tcl/Tk --" -font {Arial 18 bold} -fg blue
+	pack .splash.title -fill x -padx 8 -pady 8
+	
+	set splash_status "Loading configuration file ..."
+	label .splash.status -textvariable splash_status -font {Arial 9} -width 50 -fg darkred
+	pack .splash.status -fill x -pady 8
+	
+	update
+}
+########
+
+
 # load the configuration file (if it exists/is readable)
-if {[file readable "ml_cfg.ml"]} {
+if {!$testrun && [file readable "ml_cfg.ml"]} {
 	source ml_cfg.ml
 }
 
@@ -2013,16 +2330,16 @@ foreach command [info commands] {
 
 set any_files 0
 
-if {$argc} {
-	foreach name $argv {
+if {!$testrun && $argc} {
 		# replace all backslashes with forward slashes so windows filenames will be "globbed" ok.
 		regsub -all "\\\\" $name "/" name
 		foreach name [glob -nocomplain $name] {
 			make_editor $name 0 0
 			set any_files 1
 		}
-	}
-} elseif {$editor(file_history) != ""} {
+   
+	
+} elseif {!$testrun && $editor(file_history) != ""} {
 	foreach file $editor(file_history) {
 		if {[file readable $file]} {
 			make_editor $file 0 0
@@ -2031,9 +2348,11 @@ if {$argc} {
 	}
 }
 
-after idle {
-	destroy .splash
-	wm deiconify .
+if {!$testrun} {
+	after idle {
+		destroy .splash
+		wm deiconify .
+	}
 }
 
 # configure the window and menus
