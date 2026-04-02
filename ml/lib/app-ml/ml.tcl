@@ -28,9 +28,9 @@ if {[catch "package require combobox"]} {
 source lib/app-ml/combobox.tcl
 }
 
-##if {[catch "package require supertext"]} {
-##source lib/app-ml/supertext.tcl
-##}
+if {[catch "package require supertext"]} {
+source lib/app-ml/supertext.tcl
+}
 
 # == miscellaneous =================================================#
 
@@ -44,61 +44,21 @@ proc log {message} {
 
 #== syntax highlight ================================================#
 
-proc tag_word {editor_no word t line_no startx x {tag_name ""}} {
-	global editor syntax tokens kwords
-
-	# This takes 14s of 38s when doing whole ml.tcl
-	# and 14s of 30s of general lines
-	
-##	set t1 [clock clicks -milliseconds]
-	
-	
-	if {[string range $word 0 0] == "$"} {
-		lappend tokens(variable) $line_no.$startx
-		lappend tokens(variable) $line_no.$x
-		#incr tokens(variable)
-		
-	} elseif {[lsearch -sorted $kwords $word] != -1} {
-		lappend tokens(command) $line_no.$startx
-		lappend tokens(command) $line_no.$x
-		#incr tokens(command)
-		
-	} elseif {[string is double -strict $word]} {
-		lappend tokens(number) $line_no.$startx
-		lappend tokens(number) $line_no.$x
-		#incr tokens(number)
-	
-	} else {
-		incr tokens(other)
-	}
-
-	incr tokens(total)
-	
-##	set t2 [clock clicks -milliseconds]
-##	set tokens [expr {$tokens+($t2-$t1)}]
-	
-}
-
-
 proc syntax_highlight { editor_no start_line end_line } {
-	global editor tokens
+	global editor tokens kwords
 
 	set t $editor($editor_no,text)
 
 	if {$end_line == "end"} {
 		set end $end_line
+		set end_orig $end_line
 	} else {
 		set end $end_line.end
-	}
-
-	# Remove all existing tags from the text (excluding the proc tag)
-	foreach tag {command comment string number variable} {
-		$t tag remove $tag $start_line.0 $end
+		set end_orig $end_line.end
 	}
 
 	set line_no $start_line
-	set next_no [expr {$start_line + 1}]
-
+	
 	if {$end_line == "end"} {
 		set proc_no 0
 		set editor($editor_no,procs) ""
@@ -107,42 +67,51 @@ proc syntax_highlight { editor_no start_line end_line } {
 	}
 	
 	set line ""	
-	set t00 [clock seconds]
-	set tokens(total) 0
+	set t00 [clock clicks -milliseconds]
+	#set tokens(total) 0
 	set tokens(quot) {}
 	set tokens(number) {}
 	set tokens(comment) {}
 	set tokens(proc) {}
 	set tokens(variable) {}
 	set tokens(command) {}
-	set tokens(other) 0
-	
+	#set tokens(other) {}
+	# tokens(other) are words that have no tags
+	#set keys "etinrsodal\$fcpm_gxuwhby.0k1v24CAq385:jBEFDRS6ITL9MOWzPVX7UZGHJNKQY"
+	set delims "+-*/=~?!<>\\&|;,\t (\[\{\}\])"
+
+##	proc:    1 %
+##	number:  9 %
+##	quot:    9 %
+##	comment:10 %
+##	dollars:29 %
+##	command:39 %
+## 8100-8200ms
 
 	set cont [split [$t get $start_line.0 $end]	"\n"]
-
-	foreach line $cont {
-		if {$line != "" } {
+	
+	foreach line	$cont {
 		set trimmed [string trim $line]
+		# Line is not empty
+		if {$trimmed != "" } {
 		set we [string wordend $trimmed 0]
-		set first_word [string range $trimmed 0 [expr {$we - 1}]]
+        set first_word [string range $trimmed 0 [incr we -1]]
 
-		if {[string range $trimmed 0 0] == "#"} {
-			# Comment line, simply colour the whole line
-			lappend tokens(comment) $line_no.0
-			lappend tokens(comment) $line_no.end		
-			incr tokens(total)
+		if {[string index $trimmed 0] == "#"} {
+			# Comment line, simply colour whole line
+			lappend tokens(comment) $line_no.0 $line_no.end
 
 		} elseif {$first_word == "proc"} {
-			# This takes < 1s
-			# proc statement, colour the whole line and add the proc name to the proc list
-			set end [string first " " $trimmed [expr {$we + 1}]]
+			# This takes < 1s in total
+			# Proc statement, colour the whole line and add procname to proclist
+            set end [string first " " $trimmed [incr we 2]]
 			if {$end == -1} {
 				# Provide some extra handling for procedure names ending with semi-colon
 				# to support some other languages besides tcl
-				set end [string first ";" $trimmed [expr {$we + 1}]]
+				set end [string first ";" $trimmed $we]
 			}
 
-			set proc_name [string trim [string range $trimmed [expr {$we + 1}] $end]]
+			set proc_name [string trim [string range $trimmed $we $end]]
 			if {$proc_name != ""} {
 				set exists 0
 				foreach procs $editor($editor_no,procs) {
@@ -154,74 +123,96 @@ proc syntax_highlight { editor_no start_line end_line } {
 				if {!$exists} {
 					incr proc_no
 					$t mark set mark_$proc_no $line_no.0
-					lappend editor($editor_no,procs) [list $proc_name $proc_no]
-					
-					lappend tokens(proc) $line_no.0
-					lappend tokens(proc) $line_no.end
-					incr tokens(total)
-					
+					lappend editor($editor_no,procs) [list $proc_name $proc_no]					
+					lappend tokens(proc) $line_no.0 $line_no.end
 				}
 			}
 			
 		} else {
-			# This takes 30s of 38	(and tag_word takes 14s of those 30s)
-			# General line, check all words in curline and tag them
+			# This is where almost all the time is spent.
+			# General line, check all words in curline and tag them.
+			# Two breakouts from while-loop are in the end
 			set startx 0
-			set word ""
-			set length [string length $line]
-			set quote 0
-
-			for {set x 0} {$x < $length} {incr x} {
-				set c [string range $line $x $x]
-				
-				# On going quotation
-				if {$quote != 0} {
-					# End of quot reached
-					if {$c == $quote} {
-						lappend tokens(quot) $line_no.$startx
-						lappend tokens(quot) $line_no.[expr {$x + 1}]
-						incr tokens(total)
-		
-						set quote 0
-						set word ""
-					}
-				
-				# All other words
-				# lsearch seems to be as fast as string first
-				# "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.$:"
-				# "$.abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ:"
-				
-				} elseif { [string first $c "$.abcdefghijklmnopqrstuvwxyz0123456789_:ABCDEFGHIJKLMNOPQRSTUVWXYZ"] != -1 } {
-					if {$word == ""} { set startx $x }
-					append word $c
-				
-				# End of previous elseif word reached
-				} elseif {$word != ""} {
-					tag_word $editor_no $word $t $line_no $startx $x
-					set word ""
-				
-				# Start of quot
-				} elseif {$c == "\"" || $c == "'"} {
-					set startx $x
-					set quote $c
-				}
-				if {$c == "\\"} { incr x }
-			}
+			set do_quotes 0
+			set flag_finish 0
 			
-			# This is after: previous for-loop,
-			# is likely needed to tag last non quot word
-			if {$word != ""} {tag_word $editor_no $word $t $line_no $startx $x}
+			while {1} {
+			
+				# Handle quotes Begin
+				set doubles [string first "\"" $line $startx]
+				set singles [string first "'" $line $startx]
+				
+				# There is only double-quotes on line
+				if {$doubles != -1 && $singles == -1} {
+					set quot "\""
+					set sooner $doubles
+					set trimmed [string range $trimmed $startx $sooner]
+					set do_quotes 1
+					
+				# There is no quotes on line
+				} elseif {$doubles == -1 && $singles == -1} {
+					set do_quotes 0
+					set flag_finish 1
+					
+				# There is both quotes on line
+				} else {
+					if {$doubles < $singles} {
+						set quot "\""
+						set sooner $doubles
+					} else {
+						set quot "'"
+						set sooner $singles
+					}
+					
+					set trimmed [string range $trimmed $startx $sooner]
+					set do_quotes 1
+				}
+				### Handle quotes End #########
+				
+				
+				set words [split $trimmed $delims]
+				
+				# Tag words
+				foreach word $words {
+					if {$word != ""} {
+						set len_word [string length $word]
+						set startx [string first $word $line $startx]
+						set e $startx
+						incr e $len_word
+					
+						if {[string index $word 0] == "$"} {
+							lappend tokens(variable) $line_no.$startx $line_no.$e
+						} elseif {[lsearch -sorted $kwords $word] != -1} {
+							lappend tokens(command) $line_no.$startx $line_no.$e
+						} elseif {[string is double -strict $word]} {
+							lappend tokens(number) $line_no.$startx $line_no.$e	
+						}
+					}
+				}
+				
+				set startx $e
+				
+				if {$do_quotes} {
+					set x $sooner
+					set e [string first $quot $line [incr x]]
+					if {$e != -1} {
+						incr e
+						lappend tokens(quot) $line_no.$sooner $line_no.$e
+						set startx $e
+					} else {break}
+				}
+				
+				if {$flag_finish} {break}
+			}
+			# This is after: while-loop
 		}
-
-	}
-	
-	# This is after: if line is not empty
+		# After: else-general line
+	}	
+	# After: if line is not empty
 	incr line_no
-	incr next_no
 	}
 	
-	
-	# This is after: foreach
+	# This is after main foreach-loop
 	############
 	# If taglist is not empty, expand it for not-so-wise: tag add.
 	# (Not-so-wise meaning: it cant read from list!)
@@ -233,34 +224,20 @@ proc syntax_highlight { editor_no start_line end_line } {
 	# A: Again, tag add is not so wise, and when using tcl 8.4,
 	# there is no list expansion operator, yet.
 	# This could be done with eval also.
+	
+	# First remove all existing tags from the text (excluding the proc tag)
+	foreach tag {command comment quot number variable} {
+		$t tag remove $tag $start_line.0 $end_orig
+		if {[llength $tokens($tag)] > 0} [linsert $tokens($tag) 0 $t tag add $tag]
+	}
 	if {[llength $tokens(proc)] > 0} [linsert $tokens(proc) 0 $t tag add proc]
-	if {[llength $tokens(quot)] > 0} [linsert $tokens(quot) 0 $t tag add string]
-	if {[llength $tokens(number)] > 0} [linsert $tokens(number) 0 $t tag add number]
-	if {[llength $tokens(comment)] > 0} [linsert $tokens(comment) 0 $t tag add comment]
-	if {[llength $tokens(variable)] > 0} [linsert $tokens(variable) 0 $t tag add variable]
-	if {[llength $tokens(command)] > 0} [linsert $tokens(command) 0 $t tag add command]
 	############
 	
 	
-	
-	
-	
-	set t22 [clock seconds]
+	set t22 [clock clicks -milliseconds]
 	set t1t2 [expr {$t22-$t00}]
-##	set tokens [expr {$tokens/1000}]
-	puts "syntax highlight took $t1t2 seconds"
-	#puts "$tokens(proc)"
+	puts "syntax highlight took $t1t2 ms"
 	
-##	puts "proc:\t$tokens(proc)\
-##\nnumber:\t$tokens(number)\
-##\nquot:\t$tokens(quot)\
-##\ncomment:$tokens(comment)\
-##\ndollar:\t$tokens(variable)\
-##\ncommand:$tokens(command)\
-##\nother:\t$tokens(other)\
-##\ntotal:\t$tokens(total)"
-
-
 	# store the most recent procedure number (proc_no)
 	set editor($editor_no,proc_no) $proc_no
 
@@ -306,7 +283,7 @@ proc validate_procedures { editor_no } {
 	global editor
 	set t $editor($editor_no,text)
 
-	# check each procedure mark still exists, if not then delete the procedure name
+	# Check each procedure mark still exists, if not then delete the procedure name
 	set index 0
 	foreach procs $editor($editor_no,procs) {
 		set no [lindex $procs 1]
@@ -357,10 +334,10 @@ proc update_status { editor_no } {
 proc make_window_active { editor_no } {
 	global editor
 
-	# find the current window and remove it from the screen
+	# Find the current window and remove it from the screen
 	set current $editor(current)
 
-	# same file? do nothing (return)
+	# Same file? do nothing (return)
 	if {$current == $editor_no} { return }
 
 	if {$current != ""} {
@@ -369,20 +346,20 @@ proc make_window_active { editor_no } {
 		destroy .menu
 	}
 
-	# get the text widget window
+	# Get text widget window
 	set t $editor($editor_no,text)
 
-	# the title of the window is "filename" (excluding drive/directory)
+	# Title of the window is "filename" (excluding drive/directory)
 	wm title . $editor($editor_no,title)
 
-	# create the main window menus
+	# Create the main window menus
 	menu .menu -tearoff 0
 
-	# add the "file" menu
+	# Add the "file" menu
 	set m .menu.file
 	menu $m -tearoff 0
 	.menu add cascade -label "File" -menu $m -underline 0
-    $m add command -label "New" -command make_editor -underline 0
+	$m add command -label "New" -command make_editor -underline 0
 	$m add command -label "Open" -command "open_file $editor_no" -underline 0
 	$m add command -label "Save" -command "save_file $editor_no" -underline 0 -accelerator Ctrl+S
 	$m add command -label "Save As" -command "save_file_as $editor_no" -underline 5
@@ -447,21 +424,21 @@ proc make_window_active { editor_no } {
 
 	. configure -menu .menu
 
-	# display the selected window on the screen
+	# map selected window
 	set w $editor($editor_no,window)
 	pack $w -expand yes -fill both
 
-	# store the current editor number
+	# Save the current editor number
 	set editor(current) $editor_no
 
-	# has window been opened with syntax highlighting?
+	# Has window been opened with syntax highlighting?
 	if {!$editor($editor_no,syntax)} {
-		#puts  jou
-		#syntax_highlight $editor_no 1 end
+		#puts "make_window_active is now doing syntax highlight"
+		syntax_highlight $editor_no 1 end
 	}
 
 	if {$editor(just_launched)} {
-		# restore lastpos
+		# Restore lastpos
 		$t mark set insert $editor(lastpos)
 		set editor(just_launched) 0
 		$t see {insert -3 lines}
@@ -473,9 +450,8 @@ proc make_window_active { editor_no } {
 		set editor(bbox_height) [lindex [$t bbox @0,0] end]
 	}
 
-	# focus on the text widget
+	# Put focus on the text widget
 	focus -force $t
-
 	update_status $editor_no
 }
 
@@ -1166,7 +1142,7 @@ proc configure_window {} {
 # this procudure is called on start-up to load the files specified on the command line and for every "file open"
 
 proc make_editor { {file ""} {display_window 1} {highlight 0} } {
-	global editor editor_no splash_status testrun
+	global editor editor_no splash_status testrun mydata
 	
 	set w [frame .w[incr editor_no]]
 
@@ -1240,7 +1216,10 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	# Create text-widget, save it to variable, named as value of string: t
 	# --> type of variable t changes, from just string to text-widget
 	####################################
-    text $t -xscrollcommand "$tx set" -yscrollcommand "$ty set" -exportselection 1 \
+##	text $t -xscrollcommand "$tx set" -yscrollcommand "$ty set" -exportselection 1 \
+##            -wrap none -font $font -tabs "$editor(tabwidth)" -cursor $cur -background #e7e7e7
+
+	supertext::text $t -xscrollcommand "$tx set" -yscrollcommand "$ty set" -exportselection 1 \
             -wrap none -font $font -tabs "$editor(tabwidth)" -cursor $cur -background #e7e7e7
 
 	$t insert end $data
@@ -1296,16 +1275,11 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 ##
 ##		return \$result"
 ##		#################### text-widget carousel END ##############
-
-
-	#### This can be removed/commented out when using above proxy
-	set editor($editor_no,status) MODIFIED
-	####
 	
 	
 	scrollbar $tx -command "$t xview" -orient h
 	scrollbar $ty -command "$t yview"
-    if {!$testrun} {
+	if {!$testrun} {
 		pack $tx -side bottom -fill x
 		pack $ty -side right -fill y
 		pack $t -side left -fill both -expand yes
@@ -1317,9 +1291,8 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	#bind $t <ButtonRelease> "update_status $editor_no"
 	bind $t <Alt-u> "update_status $editor_no;break"
 	
-	
-	#bind $t <<BBB>> "filter_actions $editor_no;break"
-	
+	set mydata ""
+	bind $t <<BBB>> "filter_actions $editor_no;break"
 	
 	bind $t <Shift-Return> "comment_add $editor_no;break"
 	bind $t <Shift-BackSpace> "comment_remove $editor_no;break"
@@ -1358,7 +1331,7 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	bind $t <Alt-x> "event generate $t <<Cut>>;break"
 	bind $t <Alt-f> "search_find $editor_no;break"
 	bind $t <Alt-r> "search_replace $editor_no;break"
-	bind $t <Control-X> "syntax_highlight $editor_no 1 end;update_status $editor_no;break"
+	bind $t <Control-X> "bind $t <<BBB>> \"filter_actions $editor_no\;break\";syntax_highlight $editor_no 1 end;update_status $editor_no;break"
 	bind $t <Alt-l> "goto_line $editor_no;break"
 
 
@@ -1391,10 +1364,9 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	$t tag configure command -foreground blue
 	$t tag configure number -foreground DarkGreen
 	$t tag configure proc -foreground blue -font {Verdana 9 bold}
-    $t tag configure comment -foreground red4
-    #green4
+	$t tag configure comment -foreground green4 ;#green4
 	$t tag configure variable -foreground red
-	$t tag configure string -foreground purple
+	$t tag configure quot -foreground purple
 	$t tag configure sel -background skyblue
 	$t tag configure sel -foreground black
 
@@ -1419,41 +1391,25 @@ proc make_editor { {file ""} {display_window 1} {highlight 0} } {
 	
 	focus -force $t
 	$t mark set insert 1.0
-
+	
+	# When this happens? not at launch, not when opening file
 	if {$highlight} {
-		#puts jou
-		#syntax_highlight $editor_no 1 end
+		#puts "make_editor is now doing syntax highlight"
+		syntax_highlight $editor_no 1 end
 	}
 	
-##	set t1 [clock seconds]
-##	syntax_highlight $editor_no 1 end
-##	set t2 [clock seconds]
-##	set t1t2 [expr {$t2-$t1}]
-##	
-##	set lines [lindex [split [$t index end] "."] 0]
-##	puts $lines
-##	set lines [expr {$lines/100}]
-##	set time [expr {$t1t2/$lines}]
-##	puts "$editor_no: syntax highlight took $time seconds/100 lines"
-##	
+	# When is this needed?
 ##	validate_procedures $editor_no
-##	set t3 [clock seconds]
-##	set t2t3 [expr {$t3-$t2}]
-##	puts "$editor_no: validate procedures took $t2t3 seconds"
 
-	
-	if {$display_window} {
-		make_window_active $editor_no
-	}
+	# When this happens?
+	if {$display_window} {make_window_active $editor_no}
 	
 	$t configure -undo 1
 	return $editor_no
 }
 
 
-proc filter_actions {editor_no} {
-	global editor
-	
+## Could be used in filter actions Begin ####################
 ##	lassign [split $mydata] start_idx end_idx length cont
 ##	lassign [split $start_idx "."] startline col
 ##	lassign [split $end_idx "."] endline col
@@ -1502,6 +1458,31 @@ proc filter_actions {editor_no} {
 ##	}
 ##
 ##	return $result
+## Could be used in filter actions End ######
+
+	
+
+proc filter_actions {editor_no} {
+	global editor mydata
+	
+	set editor($editor_no,status) MODIFIED
+
+	# Break out fast when typing
+	# "etinrsodal\$fcpm_gxuwhby.0k1v24CAq385:jBEFDRS6ITL9MOWzPVX7UZGHJNKQY"
+	# need to check for empty string to catch spaces
+	lassign [split $mydata] start_idx end_idx length cont
+	if {$length == 1 && $cont != "" && ([string is alnum $cont] || [string first $cont "\$._:"] != -1) } {
+		return "break"
+	}
+
+	#lassign [split $start_idx "."] startline col
+	#lassign [split $end_idx "."] endline col
+	
+	set startline [lindex [split $start_idx "."] 0]
+	set endline [lindex [split $end_idx "."] 0]	
+
+	#set t1 [clock seconds]
+	after idle "syntax_highlight $editor_no $startline $endline"
 }
 	
 
@@ -2224,7 +2205,9 @@ global editor
 global syntax
 global editor_no
 global file_types
+
 global testrun
+global mydata
 global tokens
 ##global alnums
 global kwords
@@ -2358,29 +2341,15 @@ if {!$testrun} {
 # configure the window and menus
 configure_window
 
-# if no files loaded then open a blank editor window
+# make_editor is already called if there was command line arguments
+# or if there was configuration-file
+# --> any_files 1
+# If no files are loaded (if make_editor is not yet called),
+# then: open blank editor window (call make_editor)
 if {!$any_files} {
 	make_editor
 } else {
 	make_window_active 1
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

@@ -41,11 +41,7 @@ namespace eval supertext {
 	variable undoIndex
 	variable text "::text"
 	variable preProc
-	variable postProc
-	####
-    #variable data
-	####
-	
+	variable postProc	
 	namespace export text
 }
 
@@ -69,9 +65,9 @@ proc supertext::text {w args} {
 	variable undoIndex
 	variable preProc
 	variable postProc
-	######
-   global mydata
-	######
+	##
+	#global mydata
+	##
 
 	# this is what we will rename our widget proc to...
 	set original __$w
@@ -93,13 +89,6 @@ proc supertext::text {w args} {
 	} else {
 	set postProc($original) {}
 	}
-
-    #if {[set i [lsearch -exact $args "-stringvar"]] >= 0} {
-    #set j [expr $i + 1]
-    #set data(insert) [lindex $args $j]
-    #set args [lreplace $args $i $j]
-    #}
-
 	
 	# let the text command create the widget...
 	eval $text $w $args
@@ -144,9 +133,9 @@ proc supertext::widgetproc {this w command args} {
 	variable undoIndex
 	variable preProc
 	variable postProc
-	####
+	##
    global mydata
-	####
+	##
 	
 	# these will be the arguments to the pre and post procs
 	set originalCommand $command
@@ -341,9 +330,10 @@ proc supertext::widgetproc {this w command args} {
 		# Important: update stringvar mydata before emitting virtual-event BBB
 		# Otherwise procs binded to this event would get triggered with old value
 		set mydata "$index $index2 $length [lindex $args 1]"
-		event generate $this <<BBB>>        
-		#####################################		
-	    }
+		#if {[string length $mydata] < 100} {puts "AA $mydata BB"}
+		event generate $this <<BBB>>
+		#####################################
+		}
 
 	    # add a delete command on the undo stack.
 	    lappend undo($w) "d $index $index2"

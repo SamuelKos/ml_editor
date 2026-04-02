@@ -1,21 +1,18 @@
 This is TODO of ML-editor
 
 
-##	while {[set line [$t get $line_no.0 $next_no.0]] != "" && $line_no <= $end_line}
+
+
+check
+saving when closing
+saving other than ml.tcl
+
 
 
 Pentium 133, win95, activestate tcl 8.4
-Currently syntax highlight takes 23s/2300 lines
-or 1s/100 lines
---> about twice as fast as in beginning but not good enough
-
-
-text widget is proxied in make_editor
---> no need supertext for this
-In proxy proc $t, there is filtering for insert and delete,
-still there is later also binds for any key and button!
-these binds are nonsense and so is 'use' of supertext
---> thinking about dump supertext, no?
+Currently syntax highlight takes 8s/2300 lines
+or near 1s/300 lines
+which is a lot better than in the beginning
 
 
 
@@ -45,11 +42,14 @@ event generate $this <<BBB>>
 
 
 
+###
 note cursor98 is win only
 test this in linux macos
 
+note syntax for using cursor is different in tcl/tk 8.0
+maybe not wanting to support 8.0?
 
-###
+
 using
 config -cursor @cursor98.cur 
 
