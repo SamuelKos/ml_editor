@@ -44,6 +44,18 @@ proc log {message} {
 
 #== syntax highlight ================================================#
 
+proc re_syntags { editor_no start_line end_line } {
+	global editor tokens kwords
+
+##	set t $editor($editor_no,text)
+##	set chan [open main.tcl]
+##	set cont [read $chan]
+##	close $chan
+##	
+##	set words [regexp -all -line -inline $delims $cont]
+}
+
+
 proc syntax_highlight { editor_no start_line end_line } {
 	global editor tokens kwords
 
@@ -78,7 +90,8 @@ proc syntax_highlight { editor_no start_line end_line } {
 	#set tokens(other) {}
 	# tokens(other) are words that have no tags
 	#set keys "etinrsodal\$fcpm_gxuwhby.0k1v24CAq385:jBEFDRS6ITL9MOWzPVX7UZGHJNKQY"
-	set delims "+-*/=~?!<>\\&|;,\t (\[\{\}\])"
+	# Note that there is tab-char and space-char around comma in delims
+	set delims {'"+-*/=~?!<>\\&|;	, ([\{\}])}
 
 ##	proc:    1 %
 ##	number:  9 %
@@ -86,16 +99,16 @@ proc syntax_highlight { editor_no start_line end_line } {
 ##	comment:10 %
 ##	dollars:29 %
 ##	command:39 %
-## 8100-8200ms
-
+## 7500-7700ms
+				
 	set cont [split [$t get $start_line.0 $end]	"\n"]
 	
-	foreach line	$cont {
+	foreach line $cont {
 		set trimmed [string trim $line]
 		# Line is not empty
 		if {$trimmed != "" } {
-		set we [string wordend $trimmed 0]
-        set first_word [string range $trimmed 0 [incr we -1]]
+			set we [string wordend $trimmed 0]
+			set first_word [string range $trimmed 0 [incr we -1]]
 
 		if {[string index $trimmed 0] == "#"} {
 			# Comment line, simply colour whole line
@@ -104,7 +117,7 @@ proc syntax_highlight { editor_no start_line end_line } {
 		} elseif {$first_word == "proc"} {
 			# This takes < 1s in total
 			# Proc statement, colour the whole line and add procname to proclist
-            set end [string first " " $trimmed [incr we 2]]
+			set end [string first " " $trimmed [incr we 2]]
 			if {$end == -1} {
 				# Provide some extra handling for procedure names ending with semi-colon
 				# to support some other languages besides tcl
@@ -132,77 +145,90 @@ proc syntax_highlight { editor_no start_line end_line } {
 			# This is where almost all the time is spent.
 			# General line, check all words in curline and tag them.
 			# Two breakouts from while-loop are in the end
-			set startx 0
-			set do_quotes 0
+			#set do_quotes 0
 			set flag_finish 0
-			
+			#set indentation [string first $first_word $line]
+			set startx 0
+
 			while {1} {
 			
 				# Handle quotes Begin
 				set doubles [string first "\"" $line $startx]
 				set singles [string first "'" $line $startx]
-				
-				# There is only double-quotes on line
-				if {$doubles != -1 && $singles == -1} {
-					set quot "\""
-					set sooner $doubles
-					set trimmed [string range $trimmed $startx $sooner]
-					set do_quotes 1
+				set do_quotes 1				
 					
-				# There is no quotes on line
-				} elseif {$doubles == -1 && $singles == -1} {
+				# No quotes on line (both are -1)
+				if {$doubles == $singles} {
+					set sooner "end"
 					set do_quotes 0
 					set flag_finish 1
 					
+				# Only double-quotes on line
+				} elseif {$singles == -1} {
+					set quot "\""
+					set sooner $doubles
+
+				# Only single-quotes on line
+				} elseif {$doubles == -1} {
+					set quot "'"
+					set sooner $singles
+
 				# There is both quotes on line
+				} elseif {$doubles < $singles} {
+					set quot "\""
+					set sooner $doubles
+
 				} else {
-					if {$doubles < $singles} {
-						set quot "\""
-						set sooner $doubles
-					} else {
-						set quot "'"
-						set sooner $singles
-					}
-					
-					set trimmed [string range $trimmed $startx $sooner]
-					set do_quotes 1
+					set quot "'"
+					set sooner $singles
 				}
+					
 				### Handle quotes End #########
-				
-				
-				set words [split $trimmed $delims]
-				
+
+				if {$sooner != "end"} {incr sooner -1}
+         
+				set head [string range $line $startx $sooner]
+				set words [split $head $delims]
+				set s 0
+
 				# Tag words
 				foreach word $words {
+                    
 					if {$word != ""} {
 						set len_word [string length $word]
-						set startx [string first $word $line $startx]
-						set e $startx
+						set s [string first $word $line $s]
+						set e $s
 						incr e $len_word
-					
+
 						if {[string index $word 0] == "$"} {
-							lappend tokens(variable) $line_no.$startx $line_no.$e
+							lappend tokens(variable) $line_no.$s $line_no.$e
 						} elseif {[lsearch -sorted $kwords $word] != -1} {
-							lappend tokens(command) $line_no.$startx $line_no.$e
+							lappend tokens(command) $line_no.$s $line_no.$e
 						} elseif {[string is double -strict $word]} {
-							lappend tokens(number) $line_no.$startx $line_no.$e	
+							lappend tokens(number) $line_no.$s $line_no.$e 
 						}
+						
+						set s $e
 					}
-				}
-				
-				set startx $e
-				
-				if {$do_quotes} {
-					set x $sooner
-					set e [string first $quot $line [incr x]]
-					if {$e != -1} {
-						incr e
-						lappend tokens(quot) $line_no.$sooner $line_no.$e
-						set startx $e
-					} else {break}
 				}
 				
 				if {$flag_finish} {break}
+
+				incr sooner
+
+				if {$do_quotes} {
+					set s $sooner
+					set e [string first $quot $line [incr s]]
+
+					if {$e != -1} {
+						incr e
+						lappend tokens(quot) $line_no.$sooner $line_no.$e
+						set startx $e						
+					} else {
+						set startx $sooner
+						incr startx
+					}
+				}
 			}
 			# This is after: while-loop
 		}

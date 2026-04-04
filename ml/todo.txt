@@ -10,8 +10,8 @@ saving other than ml.tcl
 
 
 Pentium 133, win95, activestate tcl 8.4
-Currently syntax highlight takes 8s/2300 lines
-or near 1s/300 lines
+Currently syntax highlight takes under 8s/2300 lines
+or 1s/300 lines
 which is a lot better than in the beginning
 
 
