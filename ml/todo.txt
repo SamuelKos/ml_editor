@@ -1,18 +1,31 @@
 This is TODO of ML-editor
 
+try tcl crunch/frink minimize?
 
 
+bracecheck in help menu
+select block also backwards
+done
+syntax check nagelfar/frink?
 
-check
-saving when closing
-saving other than ml.tcl
+use string equal
+not $somestring ==
+
+dont synt high text files
+if not tcl file --> only comment lines
+and https:// lines ?
+
+
+remove re_syntags as unused?
+
+lassign is slow!
+--> use lindex
 
 
 
 Pentium 133, win95, activestate tcl 8.4
-Currently syntax highlight takes under 8s/2300 lines
-or 1s/300 lines
-which is a lot better than in the beginning
+Syntax highlight takes under 8s/2300+ lines
+or 1s/300+ lines
 
 
 
@@ -43,6 +56,8 @@ event generate $this <<BBB>>
 
 
 ###
+remove cursor if tk < 8.4
+
 note cursor98 is win only
 test this in linux macos
 
