@@ -1,85 +1,70 @@
 This is TODO of ML-editor
 
+
+
+delete: make_editor  Do instead: init | create tabs etc.| opentab?
+delete: make_window. Do instead: create tab? | close/opentab
+delete: find/replace windows
+delete: combobox
+keep: grep?
+don't keep search history?
+
+
+
+
+###
+proclist toggle order: alphabetic(current)/linenumber
+###
 try tcl crunch/frink minimize?
-
-
+###
+pkgindex
+if {[catch "package require combobox"]} {source combobox.tcl}
+###
+toggle_syntax is currently doing nothing?
+synt_high delims check?
 bracecheck in help menu
-select block also backwards
-done
 syntax check nagelfar/frink?
-
+###
 use string equal
 not $somestring ==
-
-dont synt high text files
+not done?
+###
+don't synt high text files
 if not tcl file --> only comment lines
-and https:// lines ?
-
-
-remove re_syntags as unused?
-
-lassign is slow!
+and https:// lines?
+###
+lassign is slow?
 --> use lindex
+###
+Tabify at fileopen/close
+rstrip at fileclose
 
 
 
+
+
+################
+This is flag: has tab been syntax-highlighted at least once?
+it is set to 0 in make_editor and 1 in syntax_highlight
+editor($editor_no,syntax)
+when fixing is in such state that syntax highlight is done to all tabs at launch
+--> then remove this flag
+################
+
+
+
+
+########
 Pentium 133, win95, activestate tcl 8.4
-Syntax highlight takes under 8s/2300+ lines
-or 1s/300+ lines
-
-
-
-
-
-#####################################
-event <<BBB>> does NOT have to be binded to physical events with: event add.
-Official documentation does not tell how important this is to understand.
--->INFO It is VERY important to understand that:
-virtual-events doesn't have to be binded to physical events with event add.
-
-Example:
-bind $mywidget <<BBB>> {puts jou}
-event generate $mywidget <<BBB>>
---> jou
-
-
-Because -data attribute for virtual-events did not exist before tcl 8.5:
-Must use global variables, which is not bad option actually
-
-Important: update stringvar mydata before emitting virtual-event BBB
-Otherwise procs binded to this event would get triggered with old values:
-set mydata "$index $index2 $length [lindex $args 1]"
-event generate $this <<BBB>>
-#####################################		
-	 
-
-
-
-###
-remove cursor if tk < 8.4
-
-note cursor98 is win only
-test this in linux macos
-
-note syntax for using cursor is different in tcl/tk 8.0
-maybe not wanting to support 8.0?
-
-
-using
-config -cursor @cursor98.cur 
-
-instead of builtin windows95 cursor
-takes away mousecursor blinking
-###
-
-
 un/indent
 comment
 etc
 needs check for doing one line only
 etc
 
-
+Syntax highlight takes under 8s/2300+ lines
+or 1s/300+ lines
+########
 foreach f [font families] {puts $f}
 System
 Fixedsys
@@ -91,46 +76,7 @@ Courier New
 Verdana
 Comic Sans MS
 Small Fonts
-
-
-
-verdana 9
-get ALL dimensions, in units of, self.pad -style
-example:
-proclist-window width == 100 * self.pad 
-text -window width
-scrollbar width
-etc?
-
-
-
-
-
-
-
-
-
-
-Tabify at fileopen/close
-rstrip at fileclose
-
-
-
-search bad index check:
-in combobox, search <Return --> find flag fix
-not sure if yet fixed
-see err.txt
-
-
-
-
-
-
-
-
-
-
-
+########
 
 
 
@@ -201,9 +147,311 @@ if there would be two arguments with default values and wanting to change value
 of second, would also need to pass value of the first argument
 #####################################
 
+#####################################
+event <<BBB>> does NOT have to be binded to physical events with: event add.
+Official documentation does not tell how important this is to understand.
+-->INFO It is VERY important to understand that:
+virtual-events doesn't have to be binded to physical events with event add.
+
+Example:
+bind $mywidget <<BBB>> {puts jou}
+event generate $mywidget <<BBB>>
+--> jou
+
+Because -data attribute for virtual-events did not exist before tcl 8.5:
+Must use global variables, which is not bad option actually
+global mydata
+
+Important: update stringvar mydata before emitting virtual-event BBB
+Otherwise procs binded to this event would get triggered with old values:
+set mydata "$myvar1 $myvar2 ..."
+event generate $mywidget <<BBB>>
+#####################################		
+
+#####################################
+cursor98 is windows only
+
+when using:
+config -cursor @cursor98.cur 
+
+instead of builtin windows95 cursor, it takes away mousecursor blinking
+#####################################
+
+#####################################
 Notes End
 
 
+### Garbage Collection Begin
+proc re_syntags { editor_no } {
+	global editor tokens kwords
+
+	set t $editor($editor_no,text)
+	set proc_no 0
+	set editor($editor_no,procs) ""
+	set tokens(quot) {}
+	set tokens(number) {}
+	set tokens(comment) {}
+	set tokens(proc) {}
+	set tokens(variable) {}
+	set tokens(command) {}
+	
+	set cont [$t get 1.0 end]
+
+	set t00 [clock clicks -milliseconds]
+	if {0} {
+	# Time is: before and after first run(compile)
+	# Note: when not using indices, compiling seems to slow regexp!
+	# RE, indices, time
+	# neg, no					,2320-2900
+	# neg, yes					,1820-1750
+	
+	# RE
+	# pos, no					,2210-3000
+	# pos, yes					,1810-1750
+	# --> use pos RE and indices
+
+	# negative RE
+	# 1: add char to word, as long it is not in this list
+	# 2: if char is in list, then
+	#    2.1-2.2: is it complete quote?
+	#    2.3: is it EOL?
+	# Repeat with next char after match, (or next char if no match)
+	# Matching examples:
+	# 1:char is "a", it does not belong to list, so add it
+	# 2: char is "(", it does belong to list, so check if quote, no quote,
+	# check if EOL, no EOL --> no match, no add to word, get next char
+	# 3: char is "'", it does belong to list, so check if quote, yes quote,
+	# so add whole quote
+	#set delims {[^#\t\n \[\]()\{\}"'?&|.\\+\-/=~;*!<>]+|".*?"|'.*?'|#.*|\n}
+
+	# Positive RE
+	set delims {[a-z$_0-9.:A-Z]+|".*?"|'.*?'|#.*|\n}
+	#etinrsodal\$fcpm_gxuwhby.0k1v24CAq385:jBEFDRS6ITL9MOWzPVX7UZGHJNKQY
+	}
+
+	#set delims {[etinrsodal$fcpm_gxuwhby.0k1v24CAq385:jBEFDRS6ITL9MOWzPVX7UZGHJNKQY]+|".*?"|'.*?'|#.*}
+	#set tuples [regexp -all -line -inline -indices $delims $cont]
+
+	set tuples [regexp -all -line -inline $delims $cont]	
+	set line_no 1
+	set offset 0
+	set flag_line_just_started 1
+	
+	set line {}
+	set tmp ""
+	set tagname ""
+	set e -2
+	foreach tuple $tuples {
+
+		incr e
+		set s [lindex $tuple 0]
+		incr s -1
+		set tagless [string range $cont $e $s]
+		incr s
+		set e [lindex $tuple 1]
+		
+		set word [string range $cont $s $e]
+
+		if {[string length $tagless] != 0} {
+			append tmp $tagless
+		}
+
+		set first_char [string index $word 0]
+
+		if {[string equal $first_char "#"]} {
+			set tagname "comment"
+
+		} elseif {[string equal $word "proc"]} {
+			set start $e
+			set end [string first " " $cont [incr start 2]]
+			incr start -1
+			set proc_name [string trim [string range $cont $start $end]]
+			if {![string equal $proc_name ""]} {
+				incr proc_no
+				#$t mark set mark_$proc_no $line_no.0
+				lappend editor($editor_no,procs) [list $proc_name $proc_no]              
+				set tagname "proc"
+			}
+
+		} elseif {[string equal $first_char "$"]} {
+			set tagname "variable"
+		
+		} elseif {[lsearch -sorted $kwords $word] != -1} {
+			set tagname "command"
+		
+		} elseif {[string is double -strict $word]} {
+			set tagname "number"
+		
+		} elseif { [string first $first_char "\"'"] != -1} {
+			set tagname "quot"
+		
+		} else {
+			append tmp $word
+		}
+
+		if {![string equal $tagname ""]} {
+			if {![string equal $tmp ""]} {
+				lappend line $tmp "" $word $tagname
+				set tmp ""
+			} else {
+				lappend line $word $tagname
+			}
+			set tagname ""
+		}		
+	}
+	# After: main foreach loop 
+
+	# Store most recent procedure number (proc_no)
+	set editor($editor_no,proc_no) $proc_no
+
+	# Set "syntax" flag
+	set editor($editor_no,syntax) 1
+
+	# See: tcl/tk documentation page about: "eval"
+	eval [linsert $line 0 $t insert 1.0]
+	set t22 [clock clicks -milliseconds]
+	set t1t2 [expr {$t22-$t00}]
+	puts "re_synt high took $t1t2 ms"	
+}
+
+#####################################
+
+#== print file =====================================================#
+
+proc gdi_init { title } {
+	global gdi
+
+	# Display printer dialog, get response {printer exit_status}
+	set printer [printer dialog select]
+	if {[lindex $printer 1] != 1} {
+		return 0
+	}
+
+	# Set "hdc", this is used for all graphics/data output
+	set gdi(hdc) [lindex $printer 0]
+
+	printer job -hdc $gdi(hdc) start -name $title
+
+	# Process printer attributes, we need to page margins and pixels per inch
+	foreach row [printer attr -hdc $gdi(hdc)] {
+		set option [lindex $row 0]
+		set values [lindex $row 1]
+		switch -exact -- $option {
+			"page dimensions" {
+				set gdi(width) [lindex $values 0]
+				set gdi(height) [lindex $values 1]
+			}
+			"page minimum margins" {
+				set gdi(left) [lindex $values 0]
+				set gdi(top) [lindex $values 1]
+				set gdi(right) [lindex $values 2]
+				set gdi(bottom) [lindex $values 3]
+			}
+			"pixels per inch" {
+				set gdi(resx) [lindex $values 0]
+				set gdi(resy) [lindex $values 1]
+			}
+		}
+	}
+
+	return 1
+}
+
+proc gdi_x { x } {
+	# Convert x which is specified as a character position to pixel position
+	global gdi
+	set x [expr {(($x - 1) / 11.0) * $gdi(resx) + $gdi(left)}]
+	return $x
+}
+
+proc gdi_y { y } {
+	# Convert y which is specified as a character position to pixel position
+	global gdi
+	set y [expr {(($y - 1) / 6.0) * $gdi(resy) + $gdi(top)}]
+	return $y
+}
+
+proc gdi_inches { i axis } {
+	# Convert i which is specified in inches to a pixel size (eg: 1 inch may equal 600 pixels)
+	global gdi
+	set i [expr {$i * $gdi(res$axis)}]
+	return $i
+}
+
+proc gdi_page { command } {
+	# Gdi_page start/end
+	global gdi
+	printer page -hdc $gdi(hdc) $command
+}
+
+proc gdi_close {} {
+	global gdi
+	printer job -hdc $gdi(hdc) end
+	printer close
+}
+
+# Print file command relies on packages "printer" & "gdi" to be installed somewhere
+# System uses font for current window, to print smaller make font smaller
+
+proc print_file { editor_no } {
+	global gdi editor
+
+	# Load packages we require, if not installed then just result in an error
+	package require printer
+	package require gdi
+
+	# Initialise gdi print device
+	if {![gdi_init "ML: $editor($editor_no,title)"]} { return }
+
+	set t $editor($editor_no,text)
+
+	set font [$t cget -font]
+
+	# Get number of lines (keep insert cursor in original place)
+	set insert [$t index insert]
+	$t mark set insert end
+	set lines [lindex [split [$t index insert] .] 0]
+	$t mark set insert $insert
+
+	set page_no 0
+	set y 0
+
+	set datetime [clock format [clock seconds] -format "%A, %d %B %Y - %I:%M %p"]
+
+	# Process each line
+	for {set line 1} {$line <= $lines} {incr line} {
+		set next [expr {$line + 1}]
+		set text [$t get $line.0 $next.0]
+
+		# Before outputting text determine if new page is requried
+		if {!$y} {
+			gdi_page start
+			incr page_no
+
+			gdi text $gdi(hdc) [gdi_x 1] [gdi_y 0] -text $editor($editor_no,title) -font {Arial 13 bold} -justify left -anchor w
+			gdi text $gdi(hdc) [gdi_x 1] [gdi_y 64] -text $datetime -font {Arial 8} -justify left -anchor w
+			gdi text $gdi(hdc) [gdi_x 80] [gdi_y 64] -text "Page: $page_no" -font {Arial 8} -justify left -anchor e
+
+			set y [gdi_y 2]
+		}
+
+		# Now output text for source code
+		gdi text $gdi(hdc) [gdi_x 4] $y -text $line -font $font -anchor ne -justify left
+		set height [gdi text $gdi(hdc) [gdi_x 5] $y -text $text -font $font -anchor nw -justify left]
+
+		set y [expr {$y + ($height / 2)}]
+		if {$y > [gdi_y 62]} {
+			gdi_page end
+			set y 0
+		}
+	}
+
+	if {$y} { gdi_page end }
+
+	gdi_close
+}
+
+### Garbage Collection End
 
 
 

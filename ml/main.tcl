@@ -1,5 +1,6 @@
 # Note: have to be in same dir that contains main.tcl, this file
 
+# Check first for: lassign existence
 if {[lsearch [info commands] lassign] == -1 && [lsearch [info procs] lassign] == -1} {
 	# Note: this is slow?
 	proc lassign {valueList args} {
@@ -12,8 +13,10 @@ if {[lsearch [info commands] lassign] == -1 && [lsearch [info procs] lassign] ==
 		uplevel 1 [list foreach $args $valueList {break}]
 		return [lrange $valueList [llength $args] end]
 	}
+}
 
-	if {[catch {source ml.tcl}]} {
+# Currently not using package require syntax, just sourcing from curdir
+if {[catch {source ml.tcl}]} {
 	global errorInfo
 	puts "\nTraceback, raising call first."
 	puts "Linenumbers for procs are counted from definition line:\n"
@@ -24,8 +27,8 @@ if {[lsearch [info commands] lassign] == -1 && [lsearch [info procs] lassign] ==
 	close $chan
 	puts "\nerror is saved to: err.txt"
 	exit
-	}
 }
+
 
 
 

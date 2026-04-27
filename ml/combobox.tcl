@@ -667,18 +667,16 @@ proc ::combobox::HandleEvent {w event args} {
 	}
 
 	"<Return>" {
-	    # did the value change?
-	    set newValue [$widgets(entry) get]
-	    if {$oldValue != $newValue} {
-		CallCommand $widgets(this) $newValue
-	    }
+		# did the value change?
+		set newValue [$widgets(entry) get]
+		if {$oldValue != $newValue} {
+			CallCommand $widgets(this) $newValue
+		}
 
-	    if {[winfo ismapped $widgets(dropdown)] && !$flag} {
-		::combobox::Select $widgets(this) \
-			[$widgets(listbox) curselection]
-		return -code break;
-	    }
-
+		if {[winfo ismapped $widgets(dropdown)]} {
+			::combobox::Select $widgets(this) [$widgets(listbox) curselection]
+			return -code break;
+		}
 	}
 
 	"<Next>" {
